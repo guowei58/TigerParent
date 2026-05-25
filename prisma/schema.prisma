@@ -1,0 +1,1018 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrganizationType {
+  FAMILY
+  SCHOOL
+  TUTOR
+  HOMESCHOOL
+}
+
+enum UserRole {
+  PARENT
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum GradeBand {
+  K2_FOUNDATION
+  GRADES_3_5
+  GRADES_6_8
+  GRADES_9_10
+  GRADES_11_12
+}
+
+enum ProblemType {
+  MULTIPLE_CHOICE
+  NUMERIC
+  SHORT_ANSWER
+  WRITTEN_RESPONSE
+}
+
+enum MasteryStatus {
+  NOT_STARTED
+  LEARNING
+  PRACTICING
+  REVIEW
+  MASTERED
+  REGRESSED
+}
+
+enum SessionType {
+  DAILY_MISSION
+  PRACTICE
+  DIAGNOSTIC
+  REVIEW
+  MASTERY_CHALLENGE
+  POP_QUIZ
+}
+
+enum PopQuizStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RewardGoalType {
+  XP
+  STREAK
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum StandardFramework {
+  TEKS
+  COMMON_CORE
+  SAT
+  CUSTOM
+}
+
+enum AlignmentStrength {
+  PRIMARY
+  SECONDARY
+  SUPPORTING
+}
+
+enum PrerequisiteImportance {
+  REQUIRED
+  RECOMMENDED
+  OPTIONAL
+}
+
+enum RoadmapStage {
+  REMEDIATION
+  FOUNDATION
+  ON_GRADE
+  ADVANCED
+  SPIRAL_REVIEW
+  SAT_FOUNDATION
+}
+
+enum SatFoundationImportance {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ReviewerType {
+  AI
+  HUMAN
+  SYSTEM
+}
+
+enum ProblemReviewStatus {
+  DRAFT
+  NEEDS_REVIEW
+  APPROVED
+  REJECTED
+  RETIRED
+}
+
+enum ValidationType {
+  SCHEMA
+  ANSWER
+  SOLUTION
+  GRADE_LEVEL
+  DUPLICATE
+  AI_CRITIQUE
+  HUMAN_REVIEW
+  PREREQUISITE
+  EXPLANATION
+  DIFFICULTY
+  AMBIGUITY
+  DISTRACTOR
+  SAFETY
+  PROVENANCE
+}
+
+enum ValidationStatus {
+  PASS
+  FAIL
+  WARNING
+}
+
+enum ProblemFlagReason {
+  WRONG_ANSWER
+  CONFUSING
+  TOO_EASY
+  TOO_HARD
+  BAD_EXPLANATION
+  TYPO
+  OTHER
+}
+
+enum FlagStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
+enum CognitiveLevel {
+  RECALL
+  PROCEDURAL
+  APPLICATION
+  MULTI_STEP
+  REASONING
+  CHALLENGE
+}
+
+enum AnswerValidationMethod {
+  EXACT
+  NUMERIC_TOLERANCE
+  EXPRESSION_EQUIVALENCE
+  RUBRIC
+  MANUAL_REVIEW
+}
+
+enum ProblemSourceType {
+  HUMAN_CREATED
+  AI_GENERATED
+  IMPORTED
+  SYSTEM_GENERATED
+}
+
+enum SatImportance {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DifficultyTier {
+  RECOGNITION
+  PROCEDURE
+  VARIATION
+  APPLICATION
+  MIXED_REVIEW
+  CHALLENGE
+}
+
+enum ContentSourceRegistryType {
+  OFFICIAL_RELEASED
+  LICENSED
+  OER
+  USER_UPLOADED
+  GENERATED
+  HUMAN_AUTHORED
+}
+
+enum ProblemContentClass {
+  OFFICIAL_RELEASED
+  LICENSED_OR_OER
+  GENERATED
+}
+
+enum ProvenanceStatus {
+  UNKNOWN
+  VERIFIED
+  NEEDS_REVIEW
+  REJECTED
+}
+
+enum CopyrightStatus {
+  UNKNOWN
+  PUBLIC_RELEASED
+  LICENSED
+  OER
+  USER_PRIVATE
+  GENERATED
+}
+
+enum ProblemUsageType {
+  DIAGNOSTIC
+  FLUENCY_DRILL
+  CONCEPT_PRACTICE
+  REVIEW
+  CHALLENGE
+  OFFICIAL_STYLE
+  OFFICIAL_RELEASED
+  SAT_FOUNDATION
+  STAAR_PRACTICE
+}
+
+enum ConfidenceLevel {
+  HIGH
+  MEDIUM
+  LOW
+  NEEDS_REVIEW
+}
+
+enum ContentImportStatus {
+  PENDING
+  NORMALIZED
+  NEEDS_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Organization {
+  id        String           @id @default(cuid())
+  name      String
+  type      OrganizationType @default(FAMILY)
+  createdAt DateTime         @default(now())
+
+  users           User[]
+  studentProfiles StudentProfile[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole
+  familyId  String?
+  createdAt DateTime @default(now())
+
+  family         Organization?  @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  studentProfile StudentProfile?
+  problemFlags   ProblemFlag[]
+  problemVersions ProblemVersion[]
+  popQuizzesCreated PopQuizAssignment[] @relation("PopQuizCreatedBy")
+}
+
+model StudentProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  familyId          String
+  displayName       String
+  schoolGrade       Int
+  targetAheadMonths Int      @default(6)
+  dailyGoalMinutes  Int      @default(30)
+  dateOfBirth       DateTime?
+  activeStatus      Boolean  @default(true)
+  xp                Int      @default(0)
+  streakDays        Int      @default(0)
+  lastActiveDate    DateTime?
+  createdAt         DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family      Organization @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  settings    StudentSettings?
+  placements  StudentSubjectPlacement[]
+  sessions    PracticeSession[]
+  attempts    Attempt[]
+  mastery     MasteryState[]
+  achievements Achievement[]
+  reviewItems ReviewQueueItem[]
+  enabledSubjects StudentSubject[]
+  rewardGoals   StudentRewardGoal[]
+  sentFriendRequests     FriendRequest[]      @relation("SentFriendRequests")
+  receivedFriendRequests FriendRequest[]      @relation("ReceivedFriendRequests")
+  friendshipsAsLow       StudentFriendship[]  @relation("FriendshipLow")
+  friendshipsAsHigh      StudentFriendship[]  @relation("FriendshipHigh")
+  conversationsCreated   Conversation[]       @relation("ConversationCreator")
+  conversationMembers    ConversationMember[]
+  chatMessages           ChatMessage[]
+  problemExposures       StudentProblemExposure[]
+  mistakeDayReviews      MistakeDayReview[]
+  popQuizAssignments     PopQuizAssignment[]
+}
+
+model MistakeDayReview {
+  id          String   @id @default(cuid())
+  studentId   String
+  subjectId   String
+  mistakeDate DateTime @db.Date
+  reviewedAt  DateTime @default(now())
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, subjectId, mistakeDate])
+  @@index([studentId, subjectId])
+}
+
+model StudentSettings {
+  id                  String  @id @default(cuid())
+  studentId           String  @unique
+  onboardingCompleted Boolean @default(true)
+  activeSubjectId     String?
+  autoAdvance         Boolean @default(true)
+  weekendEnabled      Boolean @default(true)
+  difficultyAdjust    Int     @default(0)
+  videoApprovalRequired Boolean @default(true)
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model StudentSubject {
+  id        String @id @default(cuid())
+  studentId String
+  subjectId String
+  enabled   Boolean @default(true)
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, subjectId])
+}
+
+model Subject {
+  id          String @id @default(cuid())
+  name        String
+  slug        String @unique
+  description String?
+
+  tracks      CurriculumTrack[]
+  levels      Level[]
+  skills      Skill[]
+  placements  StudentSubjectPlacement[]
+  studentSubjects StudentSubject[]
+  standards   CurriculumStandard[]
+  roadmapNodes SkillRoadmapNode[]
+  problems    Problem[]
+  mistakeDayReviews MistakeDayReview[]
+}
+
+model CurriculumTrack {
+  id          String    @id @default(cuid())
+  subjectId   String
+  title       String
+  description String?
+  gradeBand   GradeBand
+  sequence    Int
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  levels  Level[]
+}
+
+model Level {
+  id                         String @id @default(cuid())
+  subjectId                  String
+  curriculumTrackId          String
+  nominalGradeLevel          Int
+  sequence                   Int
+  title                      String
+  description                String?
+  estimatedMonthsAheadOrBehind Int @default(0)
+
+  subject         Subject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  curriculumTrack CurriculumTrack @relation(fields: [curriculumTrackId], references: [id], onDelete: Cascade)
+  skills          Skill[]
+  placements      StudentSubjectPlacement[]
+}
+
+model Skill {
+  id                    String @id @default(cuid())
+  subjectId             String
+  levelId               String
+  title                 String
+  description           String?
+  nominalGradeLevel     Int
+  prerequisiteSkillIdsJson Json @default("[]")
+  sequence              Int
+  difficulty            Int    @default(1)
+  targetAccuracy        Float  @default(0.9)
+  targetMedianSeconds   Float  @default(30)
+  minProblemsForMastery Int    @default(20)
+  minSessionsForMastery Int    @default(2)
+  isFoundationSkill     Boolean @default(false)
+  isFluencySkill        Boolean @default(false)
+  satFoundationImportance SatFoundationImportance @default(NONE)
+  applicationAccuracyRequired Float @default(0.85)
+
+  subject  Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  level    Level    @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  lessons  Lesson[]
+  videos   VideoResource[]
+  problems Problem[]
+  mastery  MasteryState[]
+  reviewItems ReviewQueueItem[]
+  placements StudentSubjectPlacement[]
+  standardAlignments SkillStandardAlignment[]
+  prerequisites PrerequisiteSkill[] @relation("SkillPrerequisites")
+  prerequisiteFor PrerequisiteSkill[] @relation("PrerequisiteFor")
+  roadmapNodes SkillRoadmapNode[]
+  satReadinessMaps SATReadinessSkillMap[]
+}
+
+model Lesson {
+  id                 String @id @default(cuid())
+  skillId            String
+  title              String
+  content            String
+  workedExamplesJson Json   @default("[]")
+  commonMistakesJson Json   @default("[]")
+  whyItMatters       String?
+
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+}
+
+model VideoResource {
+  id               String  @id @default(cuid())
+  skillId          String
+  title            String
+  provider         String
+  url              String
+  durationSeconds  Int?
+  gradeLevel       Int?
+  tagsJson         Json    @default("[]")
+  approvedByParent Boolean @default(false)
+  notes            String?
+
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+}
+
+model Problem {
+  id                    String      @id @default(cuid())
+  skillId               String
+  subjectId             String?
+  type                  ProblemType
+  cognitiveLevel        CognitiveLevel @default(PROCEDURAL)
+  difficulty            Int         @default(1)
+  difficultyTier        DifficultyTier @default(PROCEDURE)
+  gradeLevel            Int
+  minGradeLevel         Int?
+  maxGradeLevel         Int?
+  targetSeconds         Float       @default(30)
+  prompt                String
+  choicesJson           Json?
+  correctAnswer         String
+  acceptableAnswersJson Json?
+  answerValidationMethod AnswerValidationMethod @default(EXACT)
+  explanation           String?
+  solutionStepsJson     Json        @default("[]")
+  distractorRationaleJson Json?
+  tagsJson              Json        @default("[]")
+  mistakeCategoriesJson Json        @default("[]")
+  commonMistakeTagsJson Json        @default("[]")
+  misconceptionTagsJson Json        @default("[]")
+  prerequisiteSkillIdsJson Json     @default("[]")
+  standardsJson         Json        @default("[]")
+  requiresScratchpad    Boolean     @default(false)
+  sourceAttribution     String?
+  sourceType            ProblemSourceType @default(SYSTEM_GENERATED)
+  aiGenerated           Boolean     @default(false)
+  approved              Boolean     @default(false)
+  reviewStatus          ProblemReviewStatus @default(NEEDS_REVIEW)
+  isActive              Boolean     @default(true)
+  studentReady          Boolean     @default(false)
+  readingLevelEstimate  Float?
+  contentClass          ProblemContentClass @default(GENERATED)
+  sourceId              String?
+  sourceName            String?
+  sourceUrl             String?
+  sourceQuestionId      String?
+  sourceYear            Int?
+  sourceExam            String?
+  sourceGradeLevel      Int?
+  sourceStandardCode    String?
+  provenanceStatus      ProvenanceStatus @default(UNKNOWN)
+  copyrightStatus       CopyrightStatus @default(GENERATED)
+  canShowToStudent      Boolean @default(false)
+  canUseInCommercialProduct Boolean @default(false)
+  attributionText       String?
+  usageType             ProblemUsageType @default(CONCEPT_PRACTICE)
+  confidenceScore       Float @default(0)
+  confidenceLevel       ConfidenceLevel @default(NEEDS_REVIEW)
+  choicesWithIdsJson    Json?
+  correctChoiceId       String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @default(now()) @updatedAt
+
+  contentSource ContentSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  skill     Skill                    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  subject   Subject?                 @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  attempts  Attempt[]
+  exposures StudentProblemExposure[]
+  standardAlignments ProblemStandardAlignment[]
+  qualityReviews ProblemQualityReview[]
+  validationRuns ProblemValidationRun[]
+  performanceStats ProblemPerformanceStats?
+  flags ProblemFlag[]
+  versions ProblemVersion[]
+}
+
+model StudentSubjectPlacement {
+  id                  String   @id @default(cuid())
+  studentId           String
+  subjectId           String
+  schoolGrade         Int
+  assessedGradeLevel  Float
+  currentLevelId      String?
+  currentSkillId      String?
+  monthsAheadOrBehind Float    @default(0)
+  confidenceScore     Float    @default(0.5)
+  lastUpdatedAt       DateTime @default(now())
+
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject      Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  currentLevel Level?         @relation(fields: [currentLevelId], references: [id], onDelete: SetNull)
+  currentSkill Skill?         @relation(fields: [currentSkillId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, subjectId])
+}
+
+model PracticeSession {
+  id                     String      @id @default(cuid())
+  studentId              String
+  sessionType            SessionType @default(PRACTICE)
+  startedAt              DateTime    @default(now())
+  endedAt                DateTime?
+  targetMinutes          Int         @default(30)
+  activeSeconds          Int         @default(0)
+  completed              Boolean     @default(false)
+  totalProblems          Int         @default(0)
+  correctProblems        Int         @default(0)
+  accuracy               Float?
+  medianSecondsPerProblem Float?
+  skillsJson             Json        @default("[]")
+  phaseJson              Json?
+
+  student  StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  attempts Attempt[]
+  popQuizAssignment PopQuizAssignment?
+}
+
+model PopQuizAssignment {
+  id              String         @id @default(cuid())
+  studentId       String
+  createdByUserId String
+  title           String?
+  skillIdsJson    Json           @default("[]")
+  problemCount    Int            @default(8)
+  status          PopQuizStatus  @default(PENDING)
+  sessionId       String?        @unique
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+
+  student   StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy User             @relation("PopQuizCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  session   PracticeSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, status])
+}
+
+model Attempt {
+  id              String   @id @default(cuid())
+  sessionId       String
+  studentId       String
+  problemId       String
+  answer          String
+  isCorrect       Boolean
+  elapsedSeconds  Float
+  mistakeCategory String?
+  showedWork      Boolean?
+  workQualityJson Json?
+  createdAt       DateTime @default(now())
+
+  session  PracticeSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student  StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  problem  Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  strokes  StrokeSubmission?
+}
+
+model StrokeSubmission {
+  id            String   @id @default(cuid())
+  attemptId     String   @unique
+  strokeDataJson Json
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+}
+
+model StudentProblemExposure {
+  id          String   @id @default(cuid())
+  studentId   String
+  problemId   String
+  sessionId   String?
+  firstSeenAt DateTime @default(now())
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  problem Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, problemId])
+  @@index([studentId])
+}
+
+model MasteryState {
+  id               String        @id @default(cuid())
+  studentId        String
+  skillId          String
+  masteryScore     Float         @default(0)
+  accuracy         Float         @default(0)
+  medianSeconds    Float         @default(0)
+  attemptsCount    Int           @default(0)
+  correctCount     Int           @default(0)
+  sessionsCount    Int           @default(0)
+  retentionScore   Float         @default(0)
+  challengeScore   Float?
+  status           MasteryStatus @default(NOT_STARTED)
+  lastPracticedAt  DateTime?
+  nextReviewAt     DateTime?
+  reviewIntervalDays Int?
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  skill   Skill          @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, skillId])
+}
+
+model ReviewQueueItem {
+  id          String   @id @default(cuid())
+  studentId   String
+  skillId     String
+  dueAt       DateTime
+  completed   Boolean  @default(false)
+  priority    Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  skill   Skill          @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, dueAt])
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  studentId   String
+  type        String
+  title       String
+  description String?
+  earnedAt    DateTime @default(now())
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model StudentRewardGoal {
+  id              String         @id @default(cuid())
+  studentId       String
+  goalType        RewardGoalType @default(XP)
+  title           String
+  description     String?
+  xpRequired      Int?
+  streakDays      Int?
+  cashRewardCents Int?
+  active          Boolean        @default(true)
+  redeemed        Boolean        @default(false)
+  redeemedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, active])
+}
+
+model FriendRequest {
+  id            String              @id @default(cuid())
+  fromStudentId String
+  toStudentId   String
+  status        FriendRequestStatus @default(PENDING)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  fromStudent StudentProfile @relation("SentFriendRequests", fields: [fromStudentId], references: [id], onDelete: Cascade)
+  toStudent   StudentProfile @relation("ReceivedFriendRequests", fields: [toStudentId], references: [id], onDelete: Cascade)
+
+  @@unique([fromStudentId, toStudentId])
+  @@index([toStudentId, status])
+}
+
+model StudentFriendship {
+  id            String   @id @default(cuid())
+  studentLowId  String
+  studentHighId String
+  createdAt     DateTime @default(now())
+
+  studentLow  StudentProfile @relation("FriendshipLow", fields: [studentLowId], references: [id], onDelete: Cascade)
+  studentHigh StudentProfile @relation("FriendshipHigh", fields: [studentHighId], references: [id], onDelete: Cascade)
+
+  @@unique([studentLowId, studentHighId])
+}
+
+model Conversation {
+  id          String           @id @default(cuid())
+  type        ConversationType
+  name        String?
+  createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  createdBy StudentProfile       @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members   ConversationMember[]
+  messages  ChatMessage[]
+}
+
+model ConversationMember {
+  id             String    @id @default(cuid())
+  conversationId String
+  studentId      String
+  joinedAt       DateTime  @default(now())
+  lastReadAt     DateTime?
+
+  conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, studentId])
+  @@index([studentId])
+}
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       StudentProfile   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model CurriculumStandard {
+  id           String            @id @default(cuid())
+  framework    StandardFramework
+  subjectSlug  String
+  subjectId    String?
+  gradeLevel   Int
+  standardCode String
+  title        String
+  description  String?
+  domain       String?
+  strand       String?
+  subSkill     String?
+  sourceUrl    String?
+  active       Boolean           @default(true)
+
+  subject              Subject?                 @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  skillAlignments      SkillStandardAlignment[]
+  problemAlignments    ProblemStandardAlignment[]
+
+  @@unique([framework, standardCode])
+  @@index([subjectSlug, gradeLevel])
+}
+
+model SkillStandardAlignment {
+  id                String             @id @default(cuid())
+  skillId           String
+  standardId        String
+  alignmentStrength AlignmentStrength  @default(PRIMARY)
+  notes             String?
+
+  skill    Skill              @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  standard CurriculumStandard @relation(fields: [standardId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, standardId])
+}
+
+model ProblemStandardAlignment {
+  id                String             @id @default(cuid())
+  problemId         String
+  standardId        String
+  alignmentStrength AlignmentStrength  @default(PRIMARY)
+  notes             String?
+
+  problem  Problem            @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  standard CurriculumStandard @relation(fields: [standardId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, standardId])
+}
+
+model PrerequisiteSkill {
+  id                   String                 @id @default(cuid())
+  skillId              String
+  prerequisiteSkillId  String
+  requiredMasteryScore Float                  @default(85)
+  importance           PrerequisiteImportance @default(REQUIRED)
+
+  skill         Skill @relation("SkillPrerequisites", fields: [skillId], references: [id], onDelete: Cascade)
+  prerequisite  Skill @relation("PrerequisiteFor", fields: [prerequisiteSkillId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, prerequisiteSkillId])
+}
+
+model SkillRoadmapNode {
+  id                    String                  @id @default(cuid())
+  subjectId             String
+  skillId               String
+  gradeLevel            Int
+  sequence              Int
+  roadmapStage          RoadmapStage            @default(ON_GRADE)
+  estimatedWeeksFromStart Int?
+  isCoreSkill           Boolean                 @default(true)
+  isRemediationSkill    Boolean                 @default(false)
+  isAdvancedSkill       Boolean                 @default(false)
+  satFoundationImportance SatFoundationImportance @default(NONE)
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, skillId])
+  @@index([subjectId, sequence])
+}
+
+model SATReadinessSkillMap {
+  id                   String        @id @default(cuid())
+  skillId              String
+  satDomain            String
+  satImportance        SatImportance @default(MEDIUM)
+  expectedMasteryGrade Int?
+  notes                String?
+
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([skillId, satDomain])
+}
+
+model ProblemQualityReview {
+  id                      String              @id @default(cuid())
+  problemId               String
+  reviewerType            ReviewerType
+  reviewerName            String?
+  status                  ProblemReviewStatus @default(NEEDS_REVIEW)
+  gradeLevelCheck         ValidationStatus?
+  standardAlignmentCheck  ValidationStatus?
+  answerCorrectnessCheck  ValidationStatus?
+  explanationQualityCheck ValidationStatus?
+  ambiguityCheck          ValidationStatus?
+  difficultyCheck         ValidationStatus?
+  distractorQualityCheck  ValidationStatus?
+  readingLevelCheck       ValidationStatus?
+  biasSafetyCheck         ValidationStatus?
+  notes                   String?
+  reviewedAt              DateTime            @default(now())
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@index([problemId, reviewedAt])
+}
+
+model ProblemValidationRun {
+  id             String           @id @default(cuid())
+  problemId      String
+  validationType ValidationType
+  status         ValidationStatus
+  detailsJson    Json             @default("{}")
+  createdAt      DateTime         @default(now())
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@index([problemId, validationType, createdAt])
+}
+
+model ProblemPerformanceStats {
+  id                   String   @id @default(cuid())
+  problemId            String   @unique
+  attemptsCount        Int      @default(0)
+  correctRate          Float    @default(0)
+  medianSeconds        Float    @default(0)
+  p25Seconds           Float?
+  p75Seconds           Float?
+  skipRate             Float    @default(0)
+  hintRate             Float    @default(0)
+  flaggedByStudentsCount Int    @default(0)
+  flaggedByParentsCount  Int    @default(0)
+  discriminationScore  Float?
+  difficultyEstimate   Float?
+  lastUpdatedAt        DateTime @updatedAt
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+}
+
+model ProblemFlag {
+  id              String            @id @default(cuid())
+  problemId       String
+  flaggedByUserId String
+  reason          ProblemFlagReason
+  comment         String?
+  status          FlagStatus        @default(OPEN)
+  createdAt       DateTime          @default(now())
+  resolvedAt      DateTime?
+
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  flaggedBy User    @relation(fields: [flaggedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([problemId, status])
+}
+
+model ProblemVersion {
+  id               String   @id @default(cuid())
+  problemId        String
+  versionNumber    Int
+  prompt           String
+  choicesJson      Json?
+  correctAnswer    String
+  explanation      String?
+  solutionStepsJson Json?
+  editedByUserId   String?
+  changeNotes      String?
+  createdAt        DateTime @default(now())
+
+  problem  Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  editedBy User?   @relation(fields: [editedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([problemId, versionNumber])
+}
+
+model ContentSource {
+  id                      String                    @id @default(cuid())
+  name                    String
+  sourceType              ContentSourceRegistryType
+  publisher               String?
+  url                     String?
+  licenseType             String?
+  termsUrl                String?
+  allowedUseNotes         String?
+  attributionRequired     Boolean                   @default(false)
+  commercialUseAllowed    Boolean                   @default(false)
+  redistributionAllowed   Boolean                   @default(false)
+  importAllowed           Boolean                   @default(true)
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+
+  problems  Problem[]
+  imports   ContentImportBatch[]
+}
+
+model ContentImportBatch {
+  id              String              @id @default(cuid())
+  sourceId        String
+  status          ContentImportStatus @default(PENDING)
+  importedByUserId String?
+  itemCount       Int                 @default(0)
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  source ContentSource       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  items  ContentImportItem[]
+}
+
+model ContentImportItem {
+  id              String              @id @default(cuid())
+  batchId         String
+  rawJson         Json
+  normalizedJson  Json?
+  problemId       String?
+  status          ContentImportStatus @default(PENDING)
+  reviewNotes     String?
+  createdAt       DateTime            @default(now())
+
+  batch ContentImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, status])
+}
