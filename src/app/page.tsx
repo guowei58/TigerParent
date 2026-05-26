@@ -32,8 +32,13 @@ export default async function HomePage() {
               Sign In
             </Button>
           </Link>
+          <Link href="/signup">
+            <Button size="lg" className="min-w-[200px] shadow-lg">
+              Create Account
+            </Button>
+          </Link>
         </div>
-        <div className="mt-12 grid sm:grid-cols-3 gap-4 text-left md:mt-16 md:gap-6">
+        <div className="mt-12 grid sm:grid-cols-2 gap-4 text-left md:mt-16 md:gap-6 max-w-2xl mx-auto">
           {[
             {
               title: "Students",
@@ -42,10 +47,6 @@ export default async function HomePage() {
             {
               title: "Parents",
               desc: "Open the Parents tab in the student app — progress, time, and focus areas, no extra login",
-            },
-            {
-              title: "Admins",
-              desc: "Manage curriculum, problems, and video resources",
             },
           ].map((item) => (
             <div

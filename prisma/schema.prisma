@@ -14,6 +14,13 @@ enum OrganizationType {
   HOMESCHOOL
 }
 
+enum AuthTokenType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+  MAGIC_LINK
+  STUDENT_INVITE
+}
+
 enum UserRole {
   PARENT
   STUDENT
@@ -52,6 +59,13 @@ enum SessionType {
   REVIEW
   MASTERY_CHALLENGE
   POP_QUIZ
+  HOMEWORK
+  DRILL
+  QUIZ
+  TEST
+  BENCHMARK
+  RETAKE
+  CHALLENGE
 }
 
 enum PopQuizStatus {
@@ -209,11 +223,14 @@ enum DifficultyTier {
 
 enum ContentSourceRegistryType {
   OFFICIAL_RELEASED
+  OFFICIAL_LINKED
   LICENSED
   OER
   USER_UPLOADED
+  PARENT_PRIVATE_UPLOAD
   GENERATED
   HUMAN_AUTHORED
+  AI_GENERATED
 }
 
 enum ProblemContentClass {
@@ -248,6 +265,13 @@ enum ProblemUsageType {
   OFFICIAL_RELEASED
   SAT_FOUNDATION
   STAAR_PRACTICE
+  HOMEWORK
+  QUIZ
+  TEST
+  RETAKE
+  BENCHMARK
+  SAT_PRACTICE
+  SCHOOL_TEST_PREP
 }
 
 enum ConfidenceLevel {
@@ -265,6 +289,119 @@ enum ContentImportStatus {
   REJECTED
 }
 
+enum ContentImportMode {
+  FULL_IMPORT_ALLOWED
+  LINK_ONLY
+  METADATA_ONLY
+  PRIVATE_UPLOAD_ONLY
+  BLOCKED
+  NEEDS_REVIEW
+}
+
+enum ContentDisplayMode {
+  FULL_IN_APP
+  LINK_OUT
+  METADATA_ONLY
+  PRIVATE_ONLY
+  BLOCKED
+}
+
+enum SourceDocumentType {
+  RELEASED_TEST
+  ANSWER_KEY
+  RATIONALE
+  SCORING_GUIDE
+  CURRICULUM_LESSON
+  WORKSHEET
+  QUESTION_BANK
+  STANDARD_DOCUMENT
+  PRIVATE_UPLOAD
+}
+
+enum DocumentParseStatus {
+  NOT_PARSED
+  PARSED
+  FAILED
+  NEEDS_REVIEW
+}
+
+enum DocumentRightsStatus {
+  FULL_IMPORT_ALLOWED
+  LINK_ONLY
+  METADATA_ONLY
+  PRIVATE_ONLY
+  BLOCKED
+  NEEDS_REVIEW
+}
+
+enum AssignmentType {
+  HOMEWORK
+  DRILL
+  QUIZ
+  TEST
+  BENCHMARK
+  RETAKE
+  CHALLENGE
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  REVIEWED
+  OVERDUE
+}
+
+enum MistakeType {
+  CARELESS
+  CONCEPTUAL
+  PROCEDURAL
+  COMPREHENSION
+  SPEED
+  GUESSING
+  UNKNOWN
+}
+
+enum TestType {
+  QUIZ
+  UNIT_TEST
+  BENCHMARK
+  STAAR_STYLE
+  SAT_STYLE
+  MIXED_REVIEW
+}
+
+enum ReadinessConfidenceBand {
+  NEEDS_FOUNDATION
+  APPROACHING_GRADE_LEVEL
+  ON_GRADE_LEVEL
+  AHEAD
+  STRONG
+  ADVANCED
+}
+
+enum SatFoundationBand {
+  FOUNDATION_BUILDING
+  EARLY_SAT_FOUNDATION
+  DEVELOPING_SAT_READINESS
+  STRONG_SAT_FOUNDATION
+  OFFICIAL_SAT_PREP_READY
+}
+
+enum ContentStrictnessMode {
+  STRICT_TEST
+  BALANCED_PRACTICE
+  DRILL_MODE
+}
+
+enum ExtractionStatus {
+  NOT_STARTED
+  EXTRACTED
+  NEEDS_REVIEW
+  APPROVED
+  FAILED
+}
+
 model Organization {
   id        String           @id @default(cuid())
   name      String
@@ -273,22 +410,37 @@ model Organization {
 
   users           User[]
   studentProfiles StudentProfile[]
+  privateMaterials PrivateMaterialVault[]
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  role      UserRole
-  familyId  String?
-  createdAt DateTime @default(now())
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          UserRole
+  familyId      String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
 
   family         Organization?  @relation(fields: [familyId], references: [id], onDelete: SetNull)
   studentProfile StudentProfile?
   problemFlags   ProblemFlag[]
   problemVersions ProblemVersion[]
   popQuizzesCreated PopQuizAssignment[] @relation("PopQuizCreatedBy")
+  privateMaterialsUploaded PrivateMaterialVault[]
+}
+
+model AuthToken {
+  id        String        @id @default(cuid())
+  email     String
+  type      AuthTokenType
+  token     String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([email, type])
 }
 
 model StudentProfile {
@@ -327,6 +479,12 @@ model StudentProfile {
   problemExposures       StudentProblemExposure[]
   mistakeDayReviews      MistakeDayReview[]
   popQuizAssignments     PopQuizAssignment[]
+  assignments            Assignment[]
+  mistakeLogs            MistakeLog[]
+  testResults            TestResult[]
+  schoolUnits            SchoolUnit[]
+  schoolReadinessScores  SchoolReadinessScore[]
+  satFoundationScores    SATFoundationScore[]
 }
 
 model MistakeDayReview {
@@ -352,6 +510,7 @@ model StudentSettings {
   weekendEnabled      Boolean @default(true)
   difficultyAdjust    Int     @default(0)
   videoApprovalRequired Boolean @default(true)
+  contentStrictness   ContentStrictnessMode @default(BALANCED_PRACTICE)
 
   student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
@@ -487,13 +646,23 @@ model Problem {
   maxGradeLevel         Int?
   targetSeconds         Float       @default(30)
   prompt                String
+  passage               String?
   choicesJson           Json?
   correctAnswer         String
   acceptableAnswersJson Json?
   answerValidationMethod AnswerValidationMethod @default(EXACT)
   explanation           String?
+  itemRationale         String?
+  answerKey             String?
   solutionStepsJson     Json        @default("[]")
+  scoringRubricJson     Json?
   distractorRationaleJson Json?
+  displayMode           ContentDisplayMode @default(FULL_IN_APP)
+  teksCode              String?
+  commonCoreCode        String?
+  satDomain             String?
+  satSkill              String?
+  sourceDocumentId      String?
   tagsJson              Json        @default("[]")
   mistakeCategoriesJson Json        @default("[]")
   commonMistakeTagsJson Json        @default("[]")
@@ -532,6 +701,7 @@ model Problem {
   updatedAt             DateTime    @default(now()) @updatedAt
 
   contentSource ContentSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  sourceDocument SourceDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
   skill     Skill                    @relation(fields: [skillId], references: [id], onDelete: Cascade)
   subject   Subject?                 @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   attempts  Attempt[]
@@ -542,6 +712,7 @@ model Problem {
   performanceStats ProblemPerformanceStats?
   flags ProblemFlag[]
   versions ProblemVersion[]
+  mistakeLogs MistakeLog[]
 }
 
 model StudentSubjectPlacement {
@@ -568,6 +739,7 @@ model PracticeSession {
   id                     String      @id @default(cuid())
   studentId              String
   sessionType            SessionType @default(PRACTICE)
+  assignmentId           String?     @unique
   startedAt              DateTime    @default(now())
   endedAt                DateTime?
   targetMinutes          Int         @default(30)
@@ -577,10 +749,13 @@ model PracticeSession {
   correctProblems        Int         @default(0)
   accuracy               Float?
   medianSecondsPerProblem Float?
+  timed                  Boolean     @default(false)
+  timeLimitSeconds       Int?
   skillsJson             Json        @default("[]")
   phaseJson              Json?
 
   student  StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignment Assignment?  @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
   attempts Attempt[]
   popQuizAssignment PopQuizAssignment?
 }
@@ -608,19 +783,24 @@ model Attempt {
   id              String   @id @default(cuid())
   sessionId       String
   studentId       String
+  assignmentId    String?
   problemId       String
   answer          String
   isCorrect       Boolean
   elapsedSeconds  Float
   mistakeCategory String?
+  mistakeType     MistakeType?
+  confidenceSelfRating Int?
   showedWork      Boolean?
   workQualityJson Json?
   createdAt       DateTime @default(now())
 
-  session  PracticeSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  student  StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  problem  Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  strokes  StrokeSubmission?
+  session    PracticeSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student    StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignment Assignment?      @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  problem    Problem          @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  strokes    StrokeSubmission?
+  mistakeLog MistakeLog?
 }
 
 model StrokeSubmission {
@@ -971,21 +1151,34 @@ model ProblemVersion {
 model ContentSource {
   id                      String                    @id @default(cuid())
   name                    String
+  shortName               String?
   sourceType              ContentSourceRegistryType
   publisher               String?
+  jurisdiction            String?
   url                     String?
   licenseType             String?
+  licenseName             String?
   termsUrl                String?
   allowedUseNotes         String?
   attributionRequired     Boolean                   @default(false)
+  attributionText         String?
   commercialUseAllowed    Boolean                   @default(false)
   redistributionAllowed   Boolean                   @default(false)
+  canStoreFullText        Boolean                   @default(false)
+  canDisplayToStudents    Boolean                   @default(true)
+  canModify               Boolean                   @default(false)
+  canRedistribute         Boolean                   @default(false)
   importAllowed           Boolean                   @default(true)
+  importStatus            ContentImportMode         @default(NEEDS_REVIEW)
+  notes                   String?
+  active                  Boolean                   @default(true)
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @updatedAt
 
   problems  Problem[]
   imports   ContentImportBatch[]
+  documents SourceDocument[]
+  privateMaterials PrivateMaterialVault[]
 }
 
 model ContentImportBatch {
@@ -1015,4 +1208,192 @@ model ContentImportItem {
   batch ContentImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@index([batchId, status])
+}
+
+model SourceDocument {
+  id            String               @id @default(cuid())
+  sourceId      String
+  title         String
+  documentType  SourceDocumentType
+  year          Int?
+  gradeLevel    Int?
+  subject       String?
+  url           String?
+  localFilePath String?
+  checksum      String?
+  parseStatus   DocumentParseStatus  @default(NOT_PARSED)
+  rightsStatus  DocumentRightsStatus @default(NEEDS_REVIEW)
+  notes         String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  source   ContentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  problems Problem[]
+
+  @@index([sourceId, documentType])
+}
+
+model Assignment {
+  id               String           @id @default(cuid())
+  studentId        String
+  assignmentType   AssignmentType
+  title            String
+  subjectId        String?
+  gradeLevel       Int?
+  skillIdsJson     Json             @default("[]")
+  standardCodesJson Json            @default("[]")
+  problemIdsJson   Json             @default("[]")
+  dueDate          DateTime?
+  targetMinutes    Int              @default(15)
+  timed            Boolean          @default(false)
+  timeLimitSeconds Int?
+  sourceMixJson    Json?
+  status           AssignmentStatus @default(ASSIGNED)
+  createdAt        DateTime         @default(now())
+  completedAt      DateTime?
+
+  student     StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  session     PracticeSession?
+  attempts    Attempt[]
+  mistakeLogs MistakeLog[]
+  testResults TestResult[]
+
+  @@index([studentId, status])
+  @@index([studentId, assignmentType, createdAt])
+}
+
+model MistakeLog {
+  id               String      @id @default(cuid())
+  studentId        String
+  problemId        String
+  assignmentId     String?
+  attemptId        String?     @unique
+  skillId          String?
+  standardCode     String?
+  mistakeType      MistakeType @default(UNKNOWN)
+  studentAnswer    String
+  correctAnswer    String
+  explanation      String?
+  needsRetake      Boolean     @default(true)
+  retakeScheduledAt DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime    @default(now())
+
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  problem    Problem        @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  assignment Assignment?    @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  attempt    Attempt?       @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, needsRetake])
+  @@index([studentId, skillId])
+}
+
+model TestResult {
+  id                   String   @id @default(cuid())
+  studentId            String
+  assignmentId         String?
+  testType             TestType
+  rawScore             Int
+  percentScore         Float
+  accuracy             Float
+  medianSeconds        Float?
+  standardBreakdownJson Json?
+  skillBreakdownJson   Json?
+  sourceMixJson        Json?
+  weakAreasJson        Json?
+  readinessBand        ReadinessConfidenceBand?
+  createdAt            DateTime @default(now())
+
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignment Assignment?    @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, createdAt])
+}
+
+model SchoolUnit {
+  id                    String   @id @default(cuid())
+  studentId             String
+  title                 String
+  subjectId             String?
+  gradeLevel            Int?
+  teacherProvided       Boolean  @default(false)
+  testDate              DateTime?
+  uploadedStudyGuideId  String?
+  standardsJson         Json     @default("[]")
+  skillsJson            Json     @default("[]")
+  status                String   @default("ACTIVE")
+  createdAt             DateTime @default(now())
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, testDate])
+}
+
+model PrivateMaterialVault {
+  id                String           @id @default(cuid())
+  familyId          String
+  uploadedByUserId  String
+  contentSourceId   String?
+  title             String
+  fileType          String
+  filePath          String
+  sourceDescription String?
+  gradeLevel        Int?
+  subject           String?
+  unit              String?
+  skillTagsJson     Json             @default("[]")
+  hasAnswerKey      Boolean          @default(false)
+  answerKeyPath     String?
+  extractionStatus  ExtractionStatus @default(NOT_STARTED)
+  visibility        String           @default("FAMILY_ONLY")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  family        Organization  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  uploadedBy    User          @relation(fields: [uploadedByUserId], references: [id], onDelete: Cascade)
+  contentSource ContentSource? @relation(fields: [contentSourceId], references: [id], onDelete: SetNull)
+
+  @@index([familyId])
+}
+
+model SchoolReadinessScore {
+  id                       String                  @id @default(cuid())
+  studentId                String
+  subjectId                String
+  gradeLevel               Int
+  standardsMastery         Float                   @default(0)
+  homeworkPerformance      Float                   @default(0)
+  quizPerformance          Float                   @default(0)
+  benchmarkPerformance     Float                   @default(0)
+  fluencyScore             Float                   @default(0)
+  retentionScore           Float                   @default(0)
+  consistencyScore         Float                   @default(0)
+  sourceBackedCoverageScore Float                  @default(0)
+  weakAreasJson            Json                    @default("[]")
+  confidenceBand           ReadinessConfidenceBand @default(NEEDS_FOUNDATION)
+  updatedAt                DateTime                @updatedAt
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, subjectId])
+}
+
+model SATFoundationScore {
+  id                        String            @id @default(cuid())
+  studentId                 String
+  mathFoundation            Float             @default(0)
+  readingFoundation         Float             @default(0)
+  grammarFoundation         Float             @default(0)
+  problemSolving            Float             @default(0)
+  speed                     Float             @default(0)
+  accuracy                  Float             @default(0)
+  retention                 Float             @default(0)
+  officialPracticePerformance Float           @default(0)
+  domainWeaknessesJson      Json              @default("[]")
+  confidenceBand            SatFoundationBand @default(FOUNDATION_BUILDING)
+  updatedAt                 DateTime          @updatedAt
+
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId])
 }

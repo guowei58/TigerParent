@@ -42,6 +42,8 @@ export async function POST(
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
 
+  const assignmentId = practiceSession.assignmentId;
+
   const problem = await prisma.problem.findUniqueOrThrow({
     where: { id: problemId },
   });
@@ -86,6 +88,7 @@ export async function POST(
     data: {
       sessionId,
       studentId: session.user.studentProfileId,
+      assignmentId: assignmentId ?? undefined,
       problemId,
       answer,
       isCorrect,
@@ -102,6 +105,38 @@ export async function POST(
         : undefined,
     },
   });
+
+  if (!isCorrect) {
+    const { inferMistakeType, logMistakeFromAttempt } = await import("@/lib/mistake-log");
+    const mistakeType = inferMistakeType({
+      isCorrect,
+      elapsedSeconds: elapsedSeconds ?? 0,
+      targetSeconds: problem.targetSeconds,
+      mistakeCategory: mistakeCategories,
+      showedWork: workQuality.showedWork,
+    });
+    await logMistakeFromAttempt({
+      attemptId: attempt.id,
+      studentId: session.user.studentProfileId,
+      problemId,
+      assignmentId,
+      skillId: problem.skillId,
+      standardCode: problem.sourceStandardCode ?? undefined,
+      studentAnswer: answer,
+      correctAnswer: problem.correctAnswer,
+      explanation: problem.explanation,
+      mistakeType,
+    }).catch(console.error);
+  } else if (assignmentId) {
+    await prisma.mistakeLog.updateMany({
+      where: {
+        studentId: session.user.studentProfileId,
+        problemId,
+        needsRetake: true,
+      },
+      data: { needsRetake: false, resolvedAt: new Date() },
+    });
+  }
 
   await recordProblemExposures(
     session.user.studentProfileId,

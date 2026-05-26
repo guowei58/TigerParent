@@ -1,5 +1,7 @@
 import { MATH_BUILDERS } from "./math-problems-g3-g4";
+import { MATH_BUILDERS_G1_G2 } from "./math-problems-g1-g2";
 import { MATH_BUILDERS_G5_G7 } from "./math-problems-g5-g7";
+import { MATH_BUILDERS_G8_G12 } from "./math-problems-g8-g12";
 import { MATH_EXTENDED_BUILDERS } from "./math-problems-extended";
 import {
   ENGLISH_BUILDERS,
@@ -8,6 +10,8 @@ import {
   g5Vocabulary,
   g6Inference,
 } from "./english-problems";
+import { ENGLISH_BUILDERS_G1_G2 } from "./english-problems-g1-g2";
+import { ENGLISH_BUILDERS_G8_G12 } from "./english-problems-g8-g12";
 import { ENGLISH_EXTENDED_BUILDERS } from "./english-problems-extended";
 import { hashSkillKey } from "./rng";
 import type { ContentProblem } from "./types";
@@ -58,11 +62,19 @@ const MATH_ALIASES: Record<string, string> = {
   "Pre-Algebra Mixed Review": "Pre-Algebra Fluency",
   Symmetry: "Geometry Basics",
   "Symmetry & Patterns": "Geometry Basics",
+  "Place Value to 100": "Place Value",
+  "Intro Multiplication": "Multiplication ×0, ×1, ×2, ×5",
+};
+
+const ENGLISH_ALIASES: Record<string, string> = {
+  "Advanced Synthesis": "Synthesis",
 };
 
 const ALL_MATH_BUILDERS: Record<string, Builder> = {
   ...MATH_BUILDERS,
+  ...MATH_BUILDERS_G1_G2,
   ...MATH_BUILDERS_G5_G7,
+  ...MATH_BUILDERS_G8_G12,
   ...MATH_EXTENDED_BUILDERS,
 };
 
@@ -74,8 +86,16 @@ for (const [alias, target] of Object.entries(MATH_ALIASES)) {
 
 const ALL_ENGLISH_BUILDERS: Record<string, Builder> = {
   ...ENGLISH_BUILDERS,
+  ...ENGLISH_BUILDERS_G1_G2,
+  ...ENGLISH_BUILDERS_G8_G12,
   ...ENGLISH_EXTENDED_BUILDERS,
 };
+
+for (const [alias, target] of Object.entries(ENGLISH_ALIASES)) {
+  if (!ALL_ENGLISH_BUILDERS[alias] && ALL_ENGLISH_BUILDERS[target]) {
+    ALL_ENGLISH_BUILDERS[alias] = ALL_ENGLISH_BUILDERS[target];
+  }
+}
 
 function resolveMathBuilder(skillTitle: string): Builder | undefined {
   return ALL_MATH_BUILDERS[skillTitle] ?? ALL_MATH_BUILDERS[MATH_ALIASES[skillTitle] ?? ""];
@@ -83,12 +103,14 @@ function resolveMathBuilder(skillTitle: string): Builder | undefined {
 
 function resolveEnglishBuilder(skillTitle: string, grade: number): Builder | undefined {
   if (skillTitle === "Vocabulary in Context") {
+    if (grade <= 2) return g3Vocabulary;
     return grade <= 4 ? g3Vocabulary : g5Vocabulary;
   }
   if (skillTitle === "Inference") {
+    if (grade <= 2) return g4Inference;
     return grade <= 4 ? g4Inference : g6Inference;
   }
-  return ALL_ENGLISH_BUILDERS[skillTitle];
+  return ALL_ENGLISH_BUILDERS[skillTitle] ?? ALL_ENGLISH_BUILDERS[ENGLISH_ALIASES[skillTitle] ?? ""];
 }
 
 export function buildProblemsForSkill(

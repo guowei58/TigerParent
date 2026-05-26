@@ -46,7 +46,10 @@ export default async function PracticePage({
 
   const practiceSession = await prisma.practiceSession.findUnique({
     where: { id: sessionId },
-    include: { attempts: { select: { problemId: true } } },
+    include: {
+      attempts: { select: { problemId: true } },
+      assignment: true,
+    },
   });
 
   if (!practiceSession || practiceSession.studentId !== studentId) {
@@ -67,6 +70,19 @@ export default async function PracticePage({
   let finalProblems = phaseData.questionIds?.length
     ? await loadProblemsByIds(phaseData.questionIds)
     : [];
+
+  if (practiceSession.assignment?.problemIdsJson) {
+    const ids = practiceSession.assignment.problemIdsJson as string[];
+    finalProblems = await loadProblemsByIds(ids);
+    if (finalProblems.length) {
+      await prisma.practiceSession.update({
+        where: { id: practiceSession.id },
+        data: {
+          phaseJson: { ...phaseData, questionIds: finalProblems.map((p) => p.id) },
+        },
+      });
+    }
+  }
 
   const resolvedSkillId = skillId ?? phaseData.primarySkillId;
   const skillIds = phaseData.skillIds;
@@ -115,7 +131,9 @@ export default async function PracticePage({
   const resumeIndex = initialProblemIndex >= 0 ? initialProblemIndex : 0;
 
   let skillTitle: string | undefined;
-  if (isPopQuiz) {
+  if (practiceSession.assignment) {
+    skillTitle = practiceSession.assignment.title;
+  } else if (isPopQuiz) {
     const titles = skillIds?.length
       ? (
           await prisma.skill.findMany({

@@ -64,7 +64,7 @@ export async function completeStudentOnboarding(
   data: { displayName: string; schoolGrade: number },
 ) {
   const displayName = data.displayName.trim();
-  const schoolGrade = Math.min(12, Math.max(3, Math.round(data.schoolGrade)));
+  const schoolGrade = Math.min(12, Math.max(1, Math.round(data.schoolGrade)));
 
   if (!displayName) {
     throw new Error("Name is required");

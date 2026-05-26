@@ -28,7 +28,7 @@ export function problemsCountForSkill(skill: Pick<SkillDef, "fluency" | "minProb
 }
 
 export const CONTENT_SOURCES = [
-  "Common Core State Standards (CCSS) alignment for grades 3–7",
+  "Common Core State Standards (CCSS) alignment for grades 1–12",
   "Kumon-style fluency progression: granular skills with high repetition",
   "Problem types modeled after EngageNY/Eureka Math (CC BY-NC-SA) — original items",
   "Problem types modeled after Illustrative Mathematics practice structures",

@@ -42,7 +42,16 @@ export default {
       const path = request.nextUrl.pathname;
 
       if (path.startsWith("/api/auth")) return true;
-      if (path === "/" || path.startsWith("/login")) return true;
+
+      const publicPaths = [
+        "/",
+        "/login",
+        "/signup",
+        "/forgot-password",
+        "/reset-password",
+        "/auth/verify",
+      ];
+      if (publicPaths.some((p) => path === p || path.startsWith(`${p}/`))) return true;
 
       // App API routes authenticate in Node route handlers. Edge middleware
       // can fail JWT decryption when env/workspace roots differ in dev.

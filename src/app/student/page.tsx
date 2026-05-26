@@ -4,21 +4,24 @@ import { getStudentDashboard } from "@/lib/student";
 import { StudentNav } from "@/components/layouts/StudentNav";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Badge, ProgressBar, StatBox } from "@/components/ui/Badge";
+import { getStudentWorkQueue } from "@/lib/assignments/daily-planner";
 import Link from "next/link";
-import { gradeLabel } from "@/lib/utils";
+import { Button } from "@/components/ui/Button";
 import { getActiveRewardGoals } from "@/lib/leaderboard";
 import { buildGoalProgress } from "@/lib/rewards";
 import { getSubjectLearningCards } from "@/lib/unit-learning";
 import { SubjectLearningCard } from "@/components/student/SubjectLearningCard";
+import { gradeLabel } from "@/lib/utils";
 
 export default async function StudentDashboardPage() {
   const session = await auth();
   if (!session?.user?.studentProfileId) redirect("/login");
 
   const studentId = session.user.studentProfileId;
-  const [data, subjectCards] = await Promise.all([
+  const [data, subjectCards, workQueue] = await Promise.all([
     getStudentDashboard(studentId),
     getSubjectLearningCards(studentId),
+    getStudentWorkQueue(studentId),
   ]);
 
   const activeGoalRecords = await getActiveRewardGoals(studentId);
@@ -53,6 +56,16 @@ export default async function StudentDashboardPage() {
             accent="rose"
           />
         </div>
+
+        <Card className="border-2 border-indigo-200 bg-indigo-50/30">
+          <CardTitle>Today&apos;s practice plan</CardTitle>
+          <p className="text-slate-600 mt-2">
+            {workQueue.items.filter((i) => i.assignment.status !== "COMPLETED").length} assignments remaining
+          </p>
+          <Link href="/student/today" className="inline-block mt-4">
+            <Button>Start today&apos;s work →</Button>
+          </Link>
+        </Card>
 
         <div className="grid md:grid-cols-2 gap-6">
           {subjectCards.map((card) => (

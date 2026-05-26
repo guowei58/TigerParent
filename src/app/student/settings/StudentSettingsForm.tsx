@@ -83,9 +83,9 @@ export function StudentSettingsForm({
             required
             className="w-full rounded-2xl border-2 border-slate-200 px-4 py-3 text-lg focus:border-indigo-500 focus:outline-none bg-white"
           >
-            {Array.from({ length: 10 }, (_, i) => i + 3).map((g) => (
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((g) => (
               <option key={g} value={g}>
-                {g === 3 ? "3rd Grade" : `${g}th Grade`}
+                {g === 1 ? "1st Grade" : g === 2 ? "2nd Grade" : g === 3 ? "3rd Grade" : `${g}th Grade`}
               </option>
             ))}
           </select>

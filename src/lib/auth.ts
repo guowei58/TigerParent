@@ -1,11 +1,16 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import authConfig, { type AppUserRole } from "@/auth.config";
 import { isJwtSessionError } from "@/lib/auth-errors";
+import { consumeAuthToken } from "@/lib/auth-tokens";
 import { prisma } from "./db";
 
 export type { AppUserRole };
+
+class EmailNotVerified extends CredentialsSignin {
+  code = "EmailNotVerified";
+}
 
 const { callbacks: authCallbacks, ...authConfigRest } = authConfig;
 
@@ -15,6 +20,24 @@ async function resolveStudentProfileId(userId: string): Promise<string | null> {
     select: { id: true },
   });
   return profile?.id ?? null;
+}
+
+async function loadAuthUser(email: string) {
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase() },
+    include: { studentProfile: true },
+  });
+
+  if (!user) return null;
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role as AppUserRole,
+    familyId: user.familyId,
+    studentProfileId: user.studentProfile?.id ?? null,
+  };
 }
 
 const nextAuth = NextAuth({
@@ -56,18 +79,20 @@ const nextAuth = NextAuth({
         if (!credentials?.email || !credentials?.password) return null;
 
         try {
+          const email = String(credentials.email).toLowerCase();
           const user = await prisma.user.findUnique({
-            where: { email: String(credentials.email).toLowerCase() },
+            where: { email },
             include: { studentProfile: true },
           });
 
           if (!user) return null;
 
-          const valid = await bcrypt.compare(
-            String(credentials.password),
-            user.password,
-          );
+          const valid = await bcrypt.compare(String(credentials.password), user.password);
           if (!valid) return null;
+
+          if (!user.emailVerified && user.role !== "ADMIN") {
+            throw new EmailNotVerified();
+          }
 
           return {
             id: user.id,
@@ -78,7 +103,32 @@ const nextAuth = NextAuth({
             studentProfileId: user.studentProfile?.id ?? null,
           };
         } catch (error) {
+          if (error instanceof EmailNotVerified) throw error;
           console.error("[auth] Database error during login:", error);
+          throw new Error("DatabaseConnection");
+        }
+      },
+    }),
+    Credentials({
+      id: "magic-link",
+      name: "magic-link",
+      credentials: {
+        token: { label: "Token", type: "text" },
+      },
+      async authorize(credentials) {
+        const token = credentials?.token;
+        if (!token) return null;
+
+        try {
+          const email = await consumeAuthToken(String(token), "MAGIC_LINK");
+          if (!email) return null;
+
+          const authUser = await loadAuthUser(email);
+          if (!authUser) return null;
+
+          return authUser;
+        } catch (error) {
+          console.error("[auth] Magic link error:", error);
           throw new Error("DatabaseConnection");
         }
       },

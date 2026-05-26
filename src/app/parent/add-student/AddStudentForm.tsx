@@ -9,6 +9,7 @@ export function AddStudentForm({ familyId }: { familyId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -30,20 +31,23 @@ export function AddStudentForm({ familyId }: { familyId: string }) {
     });
 
     if (!res.ok) {
-      setError("Failed to create student");
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? "Failed to create student");
       setLoading(false);
       return;
     }
 
     const data = await res.json();
-    router.push(`/parent/student/${data.studentId}`);
+    setInfo(data.message ?? "Invite email sent!");
+    setLoading(false);
+    setTimeout(() => router.push(`/parent/student/${data.studentId}`), 1200);
   };
 
   return (
     <Card>
       <CardTitle className="text-xl mb-4">Add Student Account</CardTitle>
       <p className="text-sm text-slate-500">
-        The student will enter their name and grade on first login.
+        We&apos;ll email the student a link to set their password and sign in.
       </p>
       <form onSubmit={handleSubmit} className="space-y-4 mt-4">
         <Field label="Login Email" name="email" type="email" required />
@@ -61,7 +65,7 @@ export function AddStudentForm({ familyId }: { familyId: string }) {
         <Field label="Daily Goal (minutes)" name="dailyGoalMinutes" type="number" defaultValue="30" />
         <Field label="Target Ahead (months)" name="targetAheadMonths" type="number" defaultValue="6" />
         {error && <p className="text-rose-600 text-sm">{error}</p>}
-        <p className="text-xs text-slate-400">Default password: demo1234 (change after first login)</p>
+        {info && <p className="text-emerald-600 text-sm">{info}</p>}
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
           {loading ? "Creating..." : "Create Student"}
         </Button>

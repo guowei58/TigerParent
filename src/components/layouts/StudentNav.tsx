@@ -5,28 +5,39 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   Home,
-  BookOpen,
-  Gift,
+  CalendarCheck,
+  ClipboardList,
+  Timer,
+  FileCheck,
   RotateCcw,
+  Gift,
   LogOut,
   Settings,
   Users,
   Trophy,
+  Target,
+  BookOpen,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 const links = [
+  { href: "/student/today", label: "Today", icon: CalendarCheck },
+  { href: "/student/homework", label: "Homework", icon: ClipboardList },
+  { href: "/student/drills", label: "Drills", icon: Timer },
+  { href: "/student/tests", label: "Tests", icon: FileCheck },
+  { href: "/student/review-mistakes", label: "Mistakes", icon: RotateCcw },
   { href: "/student", label: "Home", icon: Home },
-  { href: "/student/levels", label: "Lessons", icon: BookOpen },
-  { href: "/student/review", label: "Review", icon: RotateCcw },
+  { href: "/student/levels", label: "Refresh", icon: BookOpen },
+  { href: "/student/sat-foundation", label: "SAT", icon: Target },
   { href: "/student/rewards", label: "Rewards", icon: Gift },
-  { href: "/student/leaderboard", label: "Leaderboard", icon: Trophy },
+  { href: "/student/leaderboard", label: "Board", icon: Trophy },
   { href: "/student/for-parents", label: "Parents", icon: Users },
   { href: "/student/settings", label: "Settings", icon: Settings },
 ];
 
 function isActive(pathname: string, href: string) {
   if (href === "/student") return pathname === "/student";
+  if (href === "/student/today") return pathname === "/student/today";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

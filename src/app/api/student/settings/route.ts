@@ -38,9 +38,9 @@ export async function PATCH(request: Request) {
   if (!displayName) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
-  if (Number.isNaN(schoolGrade) || schoolGrade < 3 || schoolGrade > 12) {
+  if (Number.isNaN(schoolGrade) || schoolGrade < 1 || schoolGrade > 12) {
     return NextResponse.json(
-      { error: "Grade must be between 3 and 12" },
+      { error: "Grade must be between 1 and 12" },
       { status: 400 },
     );
   }

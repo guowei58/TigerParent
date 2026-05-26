@@ -225,14 +225,21 @@ function sequence(grade: number, count: number, seed: number) {
   const problems: ContentProblem[] = [];
   for (let i = 0; i < count; i++) {
     const text = SEQUENCE[i % SEQUENCE.length];
+    const steps = text.split(". ").map((s) => (s.endsWith(".") ? s : `${s}.`));
+    const first = steps[0];
+    const wrong = steps.slice(1, 4);
+    while (wrong.length < 3) {
+      wrong.push(steps[wrong.length % steps.length] ?? steps[1]);
+    }
     problems.push(
       mc(
         `What comes FIRST in: "${text}"`,
-        [text.split(". ")[0] + ".", text.split(". ")[1] + ".", "Finally step", "Random step"],
-        text.split(". ")[0] + ".",
+        [first, ...wrong],
+        first,
         "First step comes at the beginning.",
         grade,
         2,
+        seed + i,
       ),
     );
   }

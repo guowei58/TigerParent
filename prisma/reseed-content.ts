@@ -66,7 +66,7 @@ async function upsertSkill(
         nominalGradeLevel: grade,
         prerequisiteSkillIdsJson: [],
         sequence,
-        difficulty: Math.min(grade - 2, 5),
+        difficulty: Math.max(1, Math.min(grade - 1, 5)),
         targetAccuracy: skillDef.fluency ? 0.95 : 0.9,
         targetMedianSeconds: skillDef.targetMedianSeconds ?? 30,
         minProblemsForMastery: skillDef.minProblems ?? 60,

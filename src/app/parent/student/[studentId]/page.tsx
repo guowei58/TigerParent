@@ -48,12 +48,19 @@ export default async function ParentStudentPage({
           <StatBox label="Mastered Skills" value={masteredCount} accent="rose" />
         </div>
 
-        <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-2 text-sm">
+        <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
+          <NavLink href={`/parent/student/${studentId}/homework`} label="Homework" />
+          <NavLink href={`/parent/student/${studentId}/tests`} label="Tests" />
+          <NavLink href={`/parent/student/${studentId}/benchmarks`} label="Benchmarks" />
+          <NavLink href={`/parent/student/${studentId}/mistakes`} label="Mistakes" />
+          <NavLink href={`/parent/student/${studentId}/school-readiness`} label="Readiness" />
+          <NavLink href={`/parent/student/${studentId}/source-mix`} label="Source Mix" />
           <NavLink href={`/parent/student/${studentId}/pop-quiz`} label="Pop Quiz" />
           <NavLink href={`/parent/student/${studentId}/placement`} label="Placement" />
           <NavLink href={`/parent/student/${studentId}/sessions`} label="Sessions" />
           <NavLink href={`/parent/student/${studentId}/skills`} label="Skills" />
           <NavLink href={`/parent/student/${studentId}/work`} label="Work Review" />
+          <NavLink href={`/parent/student/${studentId}/sat-foundation`} label="SAT Foundation" />
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">

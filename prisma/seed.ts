@@ -15,37 +15,64 @@ async function seedCurriculum(
 ) {
   const subject = await prisma.subject.upsert({
     where: { slug: subjectSlug },
-    update: {},
+    update: {
+      description: `${subjectName} mastery curriculum for grades 1–12`,
+    },
     create: {
       name: subjectName,
       slug: subjectSlug,
-      description: `${subjectName} mastery curriculum for grades 3–7`,
+      description: `${subjectName} mastery curriculum for grades 1–12`,
     },
   });
 
-  const track = await prisma.curriculumTrack.upsert({
-    where: { id: `${subjectSlug}-track-3-7` },
-    update: {},
-    create: {
-      id: `${subjectSlug}-track-3-7`,
-      subjectId: subject.id,
-      title: `${subjectName} Grades 3–7`,
-      description: `Core ${subjectName.toLowerCase()} skills for elementary and middle school`,
-      gradeBand: "GRADES_3_5",
-      sequence: 1,
-    },
-  });
+  const trackDefs = [
+    { id: "k2", gradeBand: "K2_FOUNDATION" as const, title: "Grades K–2", min: 1, max: 2 },
+    { id: "3-5", gradeBand: "GRADES_3_5" as const, title: "Grades 3–5", min: 3, max: 5 },
+    { id: "6-8", gradeBand: "GRADES_6_8" as const, title: "Grades 6–8", min: 6, max: 8 },
+    { id: "9-10", gradeBand: "GRADES_9_10" as const, title: "Grades 9–10", min: 9, max: 10 },
+    { id: "11-12", gradeBand: "GRADES_11_12" as const, title: "Grades 11–12", min: 11, max: 12 },
+  ];
+
+  const tracks = new Map<number, string>();
+  for (const def of trackDefs) {
+    const track = await prisma.curriculumTrack.upsert({
+      where: { id: `${subjectSlug}-track-${def.id}` },
+      update: {
+        title: `${subjectName} ${def.title}`,
+        gradeBand: def.gradeBand,
+      },
+      create: {
+        id: `${subjectSlug}-track-${def.id}`,
+        subjectId: subject.id,
+        title: `${subjectName} ${def.title}`,
+        description: `Core ${subjectName.toLowerCase()} skills for ${def.title.toLowerCase()}`,
+        gradeBand: def.gradeBand,
+        sequence: trackDefs.indexOf(def) + 1,
+      },
+    });
+    for (let g = def.min; g <= def.max; g++) {
+      tracks.set(g, track.id);
+    }
+  }
 
   const skillIdMap = new Map<string, string>(); // reserved for cross-level prerequisite wiring
 
   for (const levelDef of curriculum) {
+    const trackId = tracks.get(levelDef.grade);
+    if (!trackId) {
+      throw new Error(`No track for grade ${levelDef.grade} in ${subjectSlug}`);
+    }
+
     const level = await prisma.level.upsert({
       where: { id: `${subjectSlug}-level-${levelDef.grade}` },
-      update: {},
+      update: {
+        curriculumTrackId: trackId,
+        title: levelDef.title,
+      },
       create: {
         id: `${subjectSlug}-level-${levelDef.grade}`,
         subjectId: subject.id,
-        curriculumTrackId: track.id,
+        curriculumTrackId: trackId,
         nominalGradeLevel: levelDef.grade,
         sequence: levelDef.grade,
         title: levelDef.title,
@@ -76,7 +103,7 @@ async function seedCurriculum(
           nominalGradeLevel: levelDef.grade,
           prerequisiteSkillIdsJson: [],
           sequence: si + 1,
-          difficulty: Math.min(levelDef.grade - 2, 5),
+          difficulty: Math.max(1, Math.min(levelDef.grade - 1, 5)),
           targetAccuracy: skillDef.fluency ? 0.95 : 0.9,
           targetMedianSeconds: skillDef.targetMedianSeconds ?? 30,
           minProblemsForMastery: skillDef.minProblems ?? 60,
@@ -144,7 +171,7 @@ async function seedCurriculum(
       if (si > 0) {
         prereqs.push(skillKey(subjectSlug, levelDef.grade, levelDef.skills[si - 1].title));
       }
-      if (levelDef.grade > 3 && si === 0) {
+      if (levelDef.grade > 1 && si === 0) {
         const prev = curriculum.find((l) => l.grade === levelDef.grade - 1);
         if (prev?.skills.length) {
           prereqs.push(
@@ -177,26 +204,30 @@ async function main() {
     },
   });
 
+  const verifiedAt = new Date();
+
   const admin = await prisma.user.upsert({
     where: { email: "admin@tigerparent.local" },
-    update: {},
+    update: { emailVerified: verifiedAt },
     create: {
       email: "admin@tigerparent.local",
       name: "Admin User",
       password: passwordHash,
       role: "ADMIN",
+      emailVerified: verifiedAt,
     },
   });
 
   const parent = await prisma.user.upsert({
     where: { email: "parent@tigerparent.local" },
-    update: {},
+    update: { emailVerified: verifiedAt },
     create: {
       email: "parent@tigerparent.local",
       name: "Demo Parent",
       password: passwordHash,
       role: "PARENT",
       familyId: family.id,
+      emailVerified: verifiedAt,
     },
   });
 
@@ -223,13 +254,14 @@ async function main() {
   for (const s of students) {
     const user = await prisma.user.upsert({
       where: { email: s.email },
-      update: {},
+      update: { emailVerified: verifiedAt },
       create: {
         email: s.email,
         name: s.name,
         password: passwordHash,
         role: "STUDENT",
         familyId: family.id,
+        emailVerified: verifiedAt,
       },
     });
 

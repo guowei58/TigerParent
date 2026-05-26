@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { randomBytes } from "node:crypto";
 import { auth } from "@/lib/auth";
+import { sendStudentInviteEmail } from "@/lib/auth-tokens";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
@@ -19,11 +21,20 @@ export async function POST(request: Request) {
     targetAheadMonths = 6,
   } = body;
 
-  const passwordHash = await bcrypt.hash("demo1234", 10);
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (existing) {
+    return NextResponse.json(
+      { error: "An account with this email already exists." },
+      { status: 409 },
+    );
+  }
+
+  const passwordHash = await bcrypt.hash(randomBytes(32).toString("hex"), 12);
 
   const user = await prisma.user.create({
     data: {
-      email: String(email).toLowerCase(),
+      email: normalizedEmail,
       name: displayName,
       password: passwordHash,
       role: "STUDENT",
@@ -53,5 +64,21 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ studentId: profile.id });
+  try {
+    await sendStudentInviteEmail(normalizedEmail, displayName);
+  } catch (error) {
+    console.error("[students] invite email failed:", error);
+    return NextResponse.json(
+      {
+        error: "Student created but we could not send the invite email. Try resending from settings.",
+        studentId: profile.id,
+      },
+      { status: 503 },
+    );
+  }
+
+  return NextResponse.json({
+    studentId: profile.id,
+    message: "Student account created. They'll receive an email to set their password.",
+  });
 }

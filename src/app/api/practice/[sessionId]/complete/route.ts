@@ -34,6 +34,11 @@ export async function POST(
     await completePopQuizAssignment(sessionId);
   }
 
+  if (practiceSession.assignmentId) {
+    const { completeAssignment } = await import("@/lib/assignments/builder");
+    await completeAssignment(practiceSession.assignmentId, session.user.studentProfileId);
+  }
+
   let nextSkill = null;
   if (advanceUnit && resolvedSkillId && practiceSession.sessionType !== "POP_QUIZ") {
     nextSkill = await advanceLessonPlanAfterUnit(

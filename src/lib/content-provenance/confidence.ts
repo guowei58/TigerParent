@@ -144,7 +144,11 @@ export function minConfidenceForSessionType(sessionType: string): ConfidenceLeve
   switch (sessionType) {
     case "DIAGNOSTIC":
     case "MASTERY_CHALLENGE":
+    case "BENCHMARK":
+    case "TEST":
       return "HIGH";
+    case "QUIZ":
+      return "MEDIUM";
     default:
       return "MEDIUM";
   }
