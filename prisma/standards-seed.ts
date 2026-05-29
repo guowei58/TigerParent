@@ -123,20 +123,33 @@ function codesForSkill(title: string, subjectSlug: string): string[] {
 }
 
 export async function alignProblemsToSkillStandards() {
-  await prisma.$executeRaw`
-    INSERT INTO "ProblemStandardAlignment" ("id", "problemId", "standardId", "alignmentStrength", "notes")
-    SELECT
-      md5(p."id" || sa."standardId") AS id,
-      p."id",
-      sa."standardId",
-      'PRIMARY'::"AlignmentStrength",
-      NULL
-    FROM "Problem" p
-    JOIN "SkillStandardAlignment" sa ON sa."skillId" = p."skillId"
-    WHERE sa."alignmentStrength" = 'PRIMARY'
-    ON CONFLICT ("problemId", "standardId") DO UPDATE
-      SET "alignmentStrength" = 'PRIMARY'::"AlignmentStrength"
-  `;
+  const maxAttempts = 6;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO "ProblemStandardAlignment" ("id", "problemId", "standardId", "alignmentStrength", "notes")
+        SELECT
+          md5(p."id" || sa."standardId") AS id,
+          p."id",
+          sa."standardId",
+          'PRIMARY'::"AlignmentStrength",
+          NULL
+        FROM "Problem" p
+        JOIN "SkillStandardAlignment" sa ON sa."skillId" = p."skillId"
+        WHERE sa."alignmentStrength" = 'PRIMARY'
+        ON CONFLICT ("problemId", "standardId") DO UPDATE
+          SET "alignmentStrength" = 'PRIMARY'::"AlignmentStrength"
+      `;
+      break;
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      const isDeadlock =
+        e?.code === "P2010" && (e?.meta?.driverAdapterError?.cause?.code === "40P01" || /deadlock detected/i.test(msg));
+      if (!isDeadlock || attempt === maxAttempts) throw e;
+      const delayMs = 250 * Math.pow(2, attempt - 1);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
 
   const count = await prisma.problemStandardAlignment.count();
   return count;

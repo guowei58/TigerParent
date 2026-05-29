@@ -30,10 +30,22 @@ export default async function AdminDashboardPage() {
           <StatBox label="Videos" value={videos} accent="indigo" />
         </div>
         <Card>
+          <CardTitle>PDF Practice (primary)</CardTitle>
+          <p className="text-slate-500 mt-2 text-sm">
+            Upload practice PDFs, review parsed problems and crops, then approve for students.
+            Students use PDF practice by default; set PDF_PRACTICE_ONLY=true in .env to hide the legacy question bank.
+          </p>
+          <a
+            href="/admin/pdf-imports"
+            className="inline-block mt-3 text-indigo-600 font-medium text-sm"
+          >
+            Go to PDF imports →
+          </a>
+        </Card>
+        <Card>
           <CardTitle>Curriculum Management</CardTitle>
           <p className="text-slate-500 mt-2 text-sm">
-            Add subjects, levels, skills, problems, and video resources. The modular
-            structure supports K–12 expansion without code changes.
+            Legacy question bank (hidden from students while PDF-only mode is on).
           </p>
         </Card>
       </main>

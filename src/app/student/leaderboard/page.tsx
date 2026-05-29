@@ -2,12 +2,10 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getStudentByUserId } from "@/lib/student";
 import { getTigerParentLeaderboard } from "@/lib/leaderboard";
-import { xpLevel, xpProgressInLevel, xpToNextLevel } from "@/lib/rewards";
 import { StudentNav } from "@/components/layouts/StudentNav";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { formatPercent, gradeLabel } from "@/lib/utils";
-import Link from "next/link";
 
 export default async function LeaderboardPage() {
   const session = await auth();
@@ -25,10 +23,7 @@ export default async function LeaderboardPage() {
       <main className="mx-auto max-w-4xl px-4 py-3 space-y-5 md:py-4 md:space-y-6">
         <Card className="border-amber-200 bg-gradient-to-br from-amber-50/95 to-white/95">
           <CardTitle className="text-2xl">Tiger Leaderboard 🐯</CardTitle>
-          <p className="text-slate-600 mt-1">
-            See how tigers stack up — rankings combine grade level, XP, accuracy,
-            speed, mastery, streak, and weekly practice time.
-          </p>
+          <p className="text-slate-600 mt-1">See how you compare with other tigers.</p>
           {current && (
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Badge variant="info">Your rank: #{current.rank}</Badge>
@@ -98,35 +93,7 @@ export default async function LeaderboardPage() {
             </table>
           </div>
         </Card>
-
-        {current && (
-          <Card>
-            <CardTitle>Your Breakdown</CardTitle>
-            <dl className="mt-3 grid sm:grid-cols-2 gap-3 text-sm">
-              <Metric label="Months ahead (avg)" value={`${current.monthsAhead >= 0 ? "+" : ""}${current.monthsAhead.toFixed(1)}`} />
-              <Metric label="Weekly practice" value={`${Math.round(current.weekMinutes)} min`} />
-              <Metric label="Tiger Level" value={`Level ${xpLevel(student.xp)}`} />
-              <Metric label="XP to next level" value={`${xpToNextLevel(student.xp)} XP`} />
-              <Metric label="Level progress" value={`${xpProgressInLevel(student.xp)}/${100} XP`} />
-            </dl>
-            <Link
-              href="/student/rewards"
-              className="mt-4 inline-block text-indigo-600 font-medium text-sm hover:underline"
-            >
-              View rewards & parent goals →
-            </Link>
-          </Card>
-        )}
       </main>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-slate-50/80 p-3">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="font-semibold text-slate-900 mt-1">{value}</dd>
     </div>
   );
 }

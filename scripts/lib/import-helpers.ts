@@ -116,7 +116,7 @@ export async function bulkImportProblems(
   let imported = 0;
   let skipped = 0;
 
-  const CHUNK = 25;
+  const CHUNK = 10;
 
   for (let i = 0; i < items.length; i += CHUNK) {
     const chunk = items.slice(i, i + CHUNK);

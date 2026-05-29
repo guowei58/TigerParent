@@ -59,7 +59,7 @@ export function ProblemView({
     () => displayChoicesForProblem(problem),
     [problem],
   );
-  const answered = feedback !== null;
+  const solved = feedback?.isCorrect === true;
 
   const workQuality = useMemo(
     () => analyzeWorkQuality(strokes, { drawingSeconds }),
@@ -122,7 +122,7 @@ export function ProblemView({
       {showScratchpad && (
         <>
           <Scratchpad onChange={handleScratchpadChange} />
-          {problem.requiresScratchpad && !answered && (
+          {problem.requiresScratchpad && !solved && (
             <p
               className={`text-sm rounded-xl px-3 py-2 ${
                 workQuality.showedWork
@@ -135,7 +135,7 @@ export function ProblemView({
                 : "✎ Show your steps on the scratchpad before submitting."}
             </p>
           )}
-          {!problem.requiresScratchpad && !answered && workQuality.showedWork && (
+          {!problem.requiresScratchpad && !solved && workQuality.showedWork && (
             <p className="text-sm rounded-xl px-3 py-2 bg-indigo-50 text-indigo-800">
               ✓ Optional scratch work — earn +1 XP bonus when you submit.
             </p>
@@ -149,13 +149,16 @@ export function ProblemView({
             <button
               key={choice.id}
               type="button"
-              disabled={answered}
-              onClick={() => setAnswer(choice.id)}
+              disabled={solved}
+              onClick={() => {
+                setAnswer(choice.id);
+                if (feedback && !feedback.isCorrect) setFeedback(null);
+              }}
               className={`rounded-2xl border-2 p-4 text-left text-lg touch-manipulation transition ${
                 answer === choice.id
                   ? "border-indigo-500 bg-indigo-50"
                   : "border-slate-200 hover:border-indigo-200"
-              } ${answered ? "opacity-70 cursor-default" : ""}`}
+              } ${solved ? "opacity-70 cursor-default" : ""}`}
             >
               {choice.text}
             </button>
@@ -169,8 +172,11 @@ export function ProblemView({
         <input
           type="text"
           value={answer}
-          disabled={answered}
-          onChange={(e) => setAnswer(e.target.value)}
+          disabled={solved}
+          onChange={(e) => {
+            setAnswer(e.target.value);
+            if (feedback && !feedback.isCorrect) setFeedback(null);
+          }}
           placeholder="Type your answer..."
           className="w-full rounded-2xl border-2 border-slate-200 px-4 py-4 text-lg focus:border-indigo-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-600"
         />
@@ -206,20 +212,26 @@ export function ProblemView({
                 : `You're ready for ${feedback.placementChange.skillTitle}!`}
             </p>
           )}
-          {feedback.explanation && (
+          {feedback.isCorrect && feedback.explanation && (
             <p className="text-sm opacity-80 border-t border-current/10 pt-2">
               <span className="font-medium">Why: </span>
               {feedback.explanation}
             </p>
           )}
+          {!feedback.isCorrect && (
+            <p className="text-sm opacity-90 border-t border-current/10 pt-2">
+              Change your answer and submit again. The solution stays hidden until you
+              get it right.
+            </p>
+          )}
         </div>
       )}
 
-      {feedback && (
+      {solved && (
         <LearnHelpPanel skillId={problem.skillId} show={true} />
       )}
 
-      {!feedback && (
+      {!solved && (
         <>
           <Link
             href={`/student/lesson/${problem.skillId}`}
@@ -249,7 +261,7 @@ export function ProblemView({
         </>
       )}
 
-      {feedback && onContinue && (
+      {solved && onContinue && (
         <Button size="lg" className="w-full" onClick={onContinue}>
           {continueLabel}
         </Button>

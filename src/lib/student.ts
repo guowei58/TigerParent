@@ -30,7 +30,6 @@ export async function getStudentDashboard(studentId: string) {
         include: { skill: true },
         take: 5,
       },
-      achievements: { orderBy: { earnedAt: "desc" }, take: 5 },
     },
   });
 

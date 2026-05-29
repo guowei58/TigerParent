@@ -22,12 +22,7 @@ export function createAssignmentQueuePage(
       <div className="min-h-[100dvh] pb-8">
         <StudentNav displayName={student!.displayName} />
         <main className="mx-auto max-w-3xl px-4 py-6">
-          <WorkQueue
-            title={title}
-            subtitle={subtitle}
-            assignments={assignments}
-            startHref={(a) => `/student/practice/start?assignmentId=${a.id}`}
-          />
+          <WorkQueue title={title} subtitle={subtitle} assignments={assignments} />
         </main>
       </div>
     );

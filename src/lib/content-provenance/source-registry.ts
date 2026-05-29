@@ -21,6 +21,8 @@ export type SourceRegistryEntry = {
   notes?: string;
 };
 
+import { SOURCE_REGISTRY_EXTENDED } from "./source-registry-extended";
+
 /** Canonical registry of supported external content sources. */
 export const SOURCE_REGISTRY: SourceRegistryEntry[] = [
   {
@@ -223,6 +225,7 @@ export const SOURCE_REGISTRY: SourceRegistryEntry[] = [
     attributionText: "National Assessment of Educational Progress (NAEP) released item",
     notes: "National benchmark items from NAEP Questions Tool.",
   },
+  ...SOURCE_REGISTRY_EXTENDED,
 ];
 
 export function getSourceById(id: string) {

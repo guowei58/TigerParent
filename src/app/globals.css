@@ -38,3 +38,23 @@ body {
 .student-nav-scroll::-webkit-scrollbar {
   display: none;
 }
+
+@keyframes pdf-answer-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pdf-answer-panel {
+  animation: pdf-answer-fade-in-up 0.45s ease-out both;
+}
+
+.pdf-choice-button {
+  opacity: 0;
+  animation: pdf-answer-fade-in-up 0.4s ease-out both;
+}

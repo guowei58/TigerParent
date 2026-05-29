@@ -135,7 +135,9 @@ export async function buildAssignmentProblems(
 
   const reviewSkillIds = reviewItems.map((r) => r.skillId);
   const mistakeRows = assignmentType === "DRILL" ? await getMistakesForReview(studentId, 2, subjectId) : [];
-  const mistakeSkillIds = [...new Set(mistakeRows.map((m) => m.problem.skillId))];
+  const mistakeSkillIds = [
+    ...new Set(mistakeRows.map((m) => m.skillId).filter((id): id is string => Boolean(id))),
+  ];
 
   const skillIds = [
     ...(skillId ? [skillId] : []),

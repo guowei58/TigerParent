@@ -52,7 +52,6 @@ export default async function TodayPage() {
           title="Required today"
           subtitle="Complete each block in order for your daily practice plan."
           assignments={items.map((i) => i.assignment)}
-          startHref={(a) => `/student/practice/start?assignmentId=${a.id}`}
         />
 
         {mistakes.length > 0 && (
@@ -74,8 +73,8 @@ export default async function TodayPage() {
 
         <p className="text-xs text-slate-400">
           Need a concept refresher?{" "}
-          <Link href="/student/levels" className="text-indigo-600 underline">
-            Quick lessons & videos
+          <Link href="/student/concepts" className="text-indigo-600 underline">
+            Practice by Topics
           </Link>{" "}
           are available but optional.
         </p>

@@ -2,8 +2,12 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
+/** Bump when Prisma schema changes so dev hot-reload picks up a fresh client. */
+const PRISMA_CLIENT_VERSION = 3;
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaVersion: number | undefined;
   pgPool: Pool | undefined;
 };
 
@@ -39,12 +43,13 @@ function createPrismaClient(): PrismaClient {
 
 function getPrismaClient(): PrismaClient {
   const cached = globalForPrisma.prisma;
-  if (cached && "popQuizAssignment" in cached) {
+  if (cached && globalForPrisma.prismaVersion === PRISMA_CLIENT_VERSION) {
     return cached;
   }
 
   const client = createPrismaClient();
   globalForPrisma.prisma = client;
+  globalForPrisma.prismaVersion = PRISMA_CLIENT_VERSION;
   return client;
 }
 

@@ -206,7 +206,9 @@ export async function getOrCreateTodayMission(
   const phaseJson: MissionPhaseJson = {
     currentPhase: "warmup",
     reviewSkillIds: reviewItems.map((r) => r.skillId),
-    mistakeSkillIds: [...new Set(mistakes.map((m) => m.problem.skillId))],
+    mistakeSkillIds: [
+      ...new Set(mistakes.map((m) => m.skillId).filter((id): id is string => Boolean(id))),
+    ],
     primarySkillId: placement.currentSkillId ?? undefined,
     primarySubjectId: subjectId,
   };

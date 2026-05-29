@@ -136,22 +136,44 @@ export default async function ReviewPage({
             </p>
           ) : (
             <div className="mt-3 space-y-3">
-              {mistakes.map((attempt) => (
+              {mistakes.map((mistake) => (
                 <div
-                  key={attempt.id}
+                  key={mistake.id}
                   className="rounded-xl border border-rose-100 bg-rose-50 p-4"
                 >
-                  <p className="font-medium text-sm text-rose-800">
-                    {attempt.problem.skill.title}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-sm text-rose-800">{mistake.topicLabel}</p>
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                      {mistake.source === "pdf" ? "Topic practice" : "Lesson bank"}
+                    </span>
+                  </div>
+                  {mistake.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={mistake.imageUrl}
+                      alt="Problem"
+                      className="mt-2 max-h-48 w-full rounded-lg border border-rose-100 bg-white object-contain"
+                    />
+                  ) : null}
+                  <p className="mt-2 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
+                    {mistake.prompt}
                   </p>
-                  <p className="mt-1 text-slate-700">{attempt.problem.prompt}</p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Your answer: {attempt.answer}
+                  <p className="mt-2 text-sm text-slate-600">
+                    <span className="font-medium text-slate-700">Your answer:</span>{" "}
+                    {mistake.userAnswer}
                   </p>
-                  {attempt.problem.explanation && (
-                    <p className="mt-1 text-sm text-emerald-700">
-                      ✓ {attempt.problem.explanation}
+                  {mistake.explanation && (
+                    <p className="mt-2 text-sm text-emerald-800 leading-relaxed">
+                      ✓ {mistake.explanation}
                     </p>
+                  )}
+                  {mistake.practiceHref && (
+                    <Link
+                      href={mistake.practiceHref}
+                      className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:underline"
+                    >
+                      Practice this topic again →
+                    </Link>
                   )}
                 </div>
               ))}

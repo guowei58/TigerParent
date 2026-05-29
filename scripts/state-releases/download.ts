@@ -5,16 +5,22 @@ import {
   generateDownloadTargets,
   type ReleaseDownloadTarget,
 } from "./catalog";
+import { isPdfBuffer, isPdfFile } from "../lib/pdf-valid";
 import { ensureDir } from "./parsers/shared";
+import { discoverAllTargets, mergeTargets } from "./scrapers/index";
 
 const CONCURRENCY = 6;
 
 async function downloadOne(target: ReleaseDownloadTarget): Promise<boolean> {
+  if (!target.url.startsWith("http")) return false;
+
   ensureDir(target.localPath);
 
   if (fs.existsSync(target.localPath)) {
-    const stat = fs.statSync(target.localPath);
-    if (stat.size > 5000) return true;
+    if (isPdfFile(target.localPath) && fs.statSync(target.localPath).size > 5000) {
+      return true;
+    }
+    fs.unlinkSync(target.localPath);
   }
 
   try {
@@ -24,7 +30,7 @@ async function downloadOne(target: ReleaseDownloadTarget): Promise<boolean> {
     });
     if (!res.ok) return false;
     const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length < 5000) return false;
+    if (buf.length < 5000 || !isPdfBuffer(buf)) return false;
     fs.writeFileSync(target.localPath, buf);
     return true;
   } catch {
@@ -52,7 +58,10 @@ async function runPool<T>(
 }
 
 export async function downloadStateReleases(options?: { stateCode?: string }) {
-  let targets = generateDownloadTargets();
+  console.log("--- Discovering targets from state portals ---");
+  const discovered = await discoverAllTargets();
+  let targets = mergeTargets(generateDownloadTargets(), discovered);
+
   if (options?.stateCode) {
     targets = targets.filter((t) => t.stateCode === options.stateCode);
   }
@@ -88,15 +97,20 @@ export async function downloadStateReleases(options?: { stateCode?: string }) {
   const manifestDir = path.join("data", "state-releases");
   fs.mkdirSync(manifestDir, { recursive: true });
   const manifest = targets
-    .filter((t) => fs.existsSync(t.localPath) && fs.statSync(t.localPath).size > 5000)
+    .filter(
+      (t) =>
+        fs.existsSync(t.localPath) &&
+        fs.statSync(t.localPath).size > 5000 &&
+        isPdfFile(t.localPath),
+    )
     .map((t) => ({
       ...t,
       size: fs.statSync(t.localPath).size,
     }));
-  fs.writeFileSync(
-    path.join(manifestDir, "manifest.json"),
-    JSON.stringify(manifest, null, 2),
-  );
+  const manifestPath = path.join(manifestDir, "manifest.json");
+  const tmpPath = `${manifestPath}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(manifest, null, 2));
+  fs.renameSync(tmpPath, manifestPath);
   console.log(`  manifest: ${manifest.length} files`);
 
   return manifest;

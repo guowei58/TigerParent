@@ -191,7 +191,7 @@ export async function POST(
   return NextResponse.json({
     attemptId: attempt.id,
     isCorrect,
-    explanation: problem.explanation,
+    explanation: isCorrect ? problem.explanation : null,
     roast,
     workFeedback,
     workQuality,

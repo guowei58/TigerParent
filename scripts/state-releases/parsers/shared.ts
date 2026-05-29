@@ -20,7 +20,7 @@ export type MapRow = {
 export function extractMcqBlocks(text: string): McqBlock[] {
   const blocks: McqBlock[] = [];
   const re =
-    /([\s\S]{20,2000}?)\nA[\s\t]+(.+?)\nB[\s\t]+(.+?)\nC[\s\t]+(.+?)\nD[\s\t]+(.+?)(?=\n(?:Page|GO ON|Session|--|\d{1,2}\s*\n|$))/gi;
+    /([\s\S]{20,2000}?)\nA(?:[\.\)]|\s)\s*(.+?)\nB(?:[\.\)]|\s)\s*(.+?)\nC(?:[\.\)]|\s)\s*(.+?)\nD(?:[\.\)]|\s)\s*(.+?)(?=\n(?:Page|GO ON|Session|ID#|--|\d{1,2}[\.\)]|\$|$))/gi;
 
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -48,6 +48,45 @@ export function extractMcqBlocks(text: string): McqBlock[] {
       prompt: prompt.slice(0, 1500),
       choices: [m[2], m[3], m[4], m[5]].map((c) => c.trim().replace(/\s+/g, " ").slice(0, 250)),
       trailingItemNums,
+    });
+  }
+
+  return blocks;
+}
+
+/** MCQs where choices use "A." "B." lines (Forward, many state practice tests). */
+export function extractMcqBlocksDotFormat(text: string): McqBlock[] {
+  const blocks: McqBlock[] = [];
+  const choiceRe =
+    /([\s\S]{15,1800}?)\nA\.\s*([\s\S]+?)\nB\.\s*([\s\S]+?)\nC\.\s*([\s\S]+?)\nD\.\s*([\s\S]+?)(?=\nID#|\n-- \d+|\n\d{1,2}[\.\uFFFD\u2022\t ]|\nGo on|\nMATHEMATICS|\nENGLISH|\nREADING|$)/gi;
+
+  let m: RegExpExecArray | null;
+  while ((m = choiceRe.exec(text)) !== null) {
+    const rawPrompt = m[1]
+      .replace(/-- \d+ of \d+ --/g, "")
+      .replace(/Go on to the next page\./gi, "")
+      .replace(/MATHEMATICS ITEMS—SESSION \d+/gi, "")
+      .replace(/Page \d+/gi, "")
+      .trim();
+
+    const lines = rawPrompt
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(
+        (l) =>
+          l &&
+          !/^Grade \d|^Forward Exam|^Practice Test|^THIS PAGE|^Table of Contents|^Developed and published/i.test(
+            l,
+          ),
+      );
+
+    const prompt = lines.slice(-8).join("\n").trim();
+    if (prompt.length < 10) continue;
+
+    blocks.push({
+      prompt: prompt.slice(0, 1500),
+      choices: [m[2], m[3], m[4], m[5]].map((c) => c.trim().replace(/\s+/g, " ").slice(0, 250)),
+      trailingItemNums: [],
     });
   }
 
@@ -96,10 +135,16 @@ export function parseNysedMap(text: string, subject: "math" | "ela"): MapRow[] {
 }
 
 export function parseMcasReleasedTable(text: string): MapRow[] {
-  const start = text.indexOf("Released Operational Items");
+  let start = text.indexOf("Released Operational Items");
+  if (start < 0) start = text.indexOf("Released Items");
   if (start < 0) return [];
 
-  const endMarkers = ["Unreleased Operational Items", "Mathematics item types are", "ELA item types are"];
+  const endMarkers = [
+    "Unreleased Operational Items",
+    "Mathematics item types are",
+    "ELA item types are",
+    "English Language Arts item types are",
+  ];
   let end = text.length;
   for (const marker of endMarkers) {
     const idx = text.indexOf(marker, start + 30);
@@ -114,7 +159,9 @@ export function parseMcasReleasedTable(text: string): MapRow[] {
   let m: RegExpExecArray | null;
   while ((m = itemRe.exec(section)) !== null) {
     const block = m[3].replace(/\s+/g, " ").trim();
-    const stdMatch = block.match(/(\d+\.[A-Z]+\.[A-Z\d]+)/);
+    const stdMatch = block.match(
+      /(\d+\.[A-Z]+\.[A-Z\d]+|RL\.\d+\.\d+[a-z]?|RI\.\d+\.\d+[a-z]?|RF\.\d+\.\d+[a-z]?|L\.\d+\.\d+[a-z]?|W\.\d+\.\d+[a-z]?|SL\.\d+\.\d+[a-z]?)/,
+    );
     const typeMatch = block.match(/\s(SR|SA|CR)\s/);
     if (!stdMatch || !typeMatch) continue;
 

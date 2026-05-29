@@ -429,6 +429,8 @@ model User {
   problemVersions ProblemVersion[]
   popQuizzesCreated PopQuizAssignment[] @relation("PopQuizCreatedBy")
   privateMaterialsUploaded PrivateMaterialVault[]
+  pdfDocumentsCreated      PdfSourceDocument[] @relation("PdfCreatedByAdmin")
+  pdfProblemsReviewed      PdfProblemSolution[] @relation("PdfSolutionReviewedBy")
 }
 
 model AuthToken {
@@ -1396,4 +1398,322 @@ model SATFoundationScore {
   student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId])
+}
+
+// =============================================================================
+// PDF-upload practice system (student-facing practice comes from these only)
+// =============================================================================
+
+enum PdfIngestionStatus {
+  uploaded
+  rendering_pages
+  extracting_text
+  detecting_problem_regions
+  cropping_problem_images
+  parsing_problems
+  parsing_answer_key
+  matching_answers
+  classifying_concepts
+  generating_explanations
+  needs_review
+  completed
+  failed
+}
+
+enum PdfQuestionType {
+  multiple_choice
+  short_answer
+  open_response
+  multi_part
+  visual_multiple_choice
+  unknown
+}
+
+enum PdfStudentDisplayMode {
+  image_crop
+  full_page_with_problem_number
+  text_rendered_admin_approved
+}
+
+enum PdfParseStatus {
+  pending
+  parsed
+  partial
+  failed
+}
+
+enum PdfReviewStatus {
+  needs_review
+  approved
+  rejected
+}
+
+enum PdfExplanationGenerationStatus {
+  not_started
+  generated
+  needs_image_review
+  answer_conflict_needs_review
+  failed
+  needs_human_review
+}
+
+enum PdfClassificationMethod {
+  ai
+  keyword
+  admin_override
+}
+
+enum PdfIngestionLayout {
+  one_problem_per_page
+  auto_detect
+}
+
+model PdfSourceDocument {
+  id                 String             @id @default(cuid())
+  title              String
+  fileName           String
+  originalFilePath   String
+  sha256Hash         String             @unique
+  pageCount          Int                @default(0)
+  gradeLevel         Int?
+  subject            String?
+  jurisdiction       String?
+  sourceName         String?
+  sourceUrl          String?
+  sourceType         String?
+  licenseNotes       String?
+  ingestionLayout    PdfIngestionLayout @default(one_problem_per_page)
+  answerKeyPageCount Int                @default(9)
+  importStatus       PdfIngestionStatus @default(uploaded)
+  createdByAdminId   String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  createdByAdmin User?            @relation("PdfCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  ingestionJobs  PdfIngestionJob[]
+  pages          PdfPage[]
+  problems       PdfPracticeProblem[]
+  answerKey      PdfAnswerKeyEntry[]
+
+  @@index([importStatus])
+}
+
+model PdfIngestionJob {
+  id                              String             @id @default(cuid())
+  sourceDocumentId                String
+  status                          PdfIngestionStatus @default(uploaded)
+  currentStep                     String?
+  progressPercent                 Int?
+  totalPages                      Int?
+  totalProblemsDetected           Int?
+  totalAnswerKeyEntriesDetected   Int?
+  totalAnswersMatched             Int?
+  totalProblemsClassified         Int?
+  totalExplanationsGenerated      Int?
+  totalProblemsNeedingReview      Int?
+  errorMessage                    String?
+  logs                            Json?
+  createdAt                       DateTime           @default(now())
+  updatedAt                       DateTime           @updatedAt
+  completedAt                     DateTime?
+
+  sourceDocument PdfSourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([sourceDocumentId, status])
+}
+
+model PdfPage {
+  id               String   @id @default(cuid())
+  sourceDocumentId String
+  pageNumber       Int
+  textRaw          String?
+  imagePath        String
+  imageWidth       Int?
+  imageHeight      Int?
+  createdAt        DateTime @default(now())
+
+  sourceDocument PdfSourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceDocumentId, pageNumber])
+}
+
+model PracticeConcept {
+  id              String   @id @default(cuid())
+  subject         String
+  gradeLevel      Int?
+  domain          String
+  name            String
+  slug            String   @unique
+  parentConceptId String?
+  description     String?
+  sortOrder       Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  parent       PracticeConcept?  @relation("ConceptHierarchy", fields: [parentConceptId], references: [id], onDelete: SetNull)
+  children     PracticeConcept[] @relation("ConceptHierarchy")
+  problems     PdfPracticeProblem[] @relation("PrimaryConcept")
+  problemLinks PdfProblemConcept[]
+
+  @@index([subject, gradeLevel, domain])
+}
+
+model PdfPracticeProblem {
+  id                     String                @id @default(cuid())
+  sourceDocumentId       String
+  problemNumber          Int
+  sourcePageStart        Int
+  sourcePageEnd          Int?
+  rawText                String?
+  cleanedText            String?
+  questionType           PdfQuestionType       @default(unknown)
+  answerFormat           String?
+  gradeLevel             Int?
+  subject                String?
+  primaryConceptId       String?
+  topic                  String?
+  subtopic               String?
+  standardGuess          String?
+  difficultyGuess        String?
+  requiresImage          Boolean               @default(true)
+  studentDisplayMode     PdfStudentDisplayMode @default(image_crop)
+  problemImagePath       String?
+  fullPageImagePath      String?
+  cropX                  Int?
+  cropY                  Int?
+  cropWidth              Int?
+  cropHeight             Int?
+  extractionConfidence   Float?
+  answerKeyConfidence    Float?
+  conceptConfidence      Float?
+  explanationConfidence  Float?
+  parseStatus            PdfParseStatus        @default(pending)
+  reviewStatus           PdfReviewStatus       @default(needs_review)
+  approvedForStudentUse  Boolean               @default(false)
+  parseWarnings          Json?
+  contentHash            String?
+  duplicateGroupId       String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  sourceDocument PdfSourceDocument   @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  primaryConcept PracticeConcept?    @relation("PrimaryConcept", fields: [primaryConceptId], references: [id], onDelete: SetNull)
+  choices        PdfAnswerChoice[]
+  solution       PdfProblemSolution?
+  conceptLinks   PdfProblemConcept[]
+  attempts       PdfProblemAttempt[]
+
+  @@unique([sourceDocumentId, problemNumber])
+  @@index([approvedForStudentUse, primaryConceptId])
+  @@index([reviewStatus])
+}
+
+model PdfAnswerChoice {
+  id        String   @id @default(cuid())
+  problemId String
+  label     String
+  text      String?
+  imagePath String?
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  problem PdfPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, label])
+}
+
+model PdfAnswerKeyEntry {
+  id                   String   @id @default(cuid())
+  sourceDocumentId     String
+  problemNumber        Int
+  rawAnswerText        String
+  correctChoiceLabel   String?
+  correctAnswerText    String?
+  points               Float?
+  rubricText           String?
+  sourcePageNumber     Int?
+  extractionConfidence Float?
+  warnings             Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  sourceDocument PdfSourceDocument  @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  solutions      PdfProblemSolution[]
+
+  @@unique([sourceDocumentId, problemNumber])
+}
+
+model PdfProblemSolution {
+  id                       String                         @id @default(cuid())
+  problemId                String                         @unique
+  answerKeyEntryId         String?
+  correctChoiceLabel       String?
+  correctAnswerText        String?
+  explanationShort         String?
+  explanationStepByStep    String?
+  childFriendlyExplanation String?
+  commonMistakes           Json?
+  prerequisiteSkills       Json?
+  estimatedTimeSeconds     Int?
+  generatedByModel         String?
+  generationStatus         PdfExplanationGenerationStatus @default(not_started)
+  confidence               Float?
+  reviewedByAdminId        String?
+  reviewedAt               DateTime?
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+
+  problem          PdfPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  answerKeyEntry   PdfAnswerKeyEntry? @relation(fields: [answerKeyEntryId], references: [id], onDelete: SetNull)
+  reviewedByAdmin  User?              @relation("PdfSolutionReviewedBy", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
+}
+
+model PdfProblemConcept {
+  id                   String                  @id @default(cuid())
+  problemId            String
+  conceptId            String
+  isPrimary            Boolean                 @default(false)
+  confidence           Float?
+  classificationMethod PdfClassificationMethod @default(ai)
+  reasoning            String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  problem PdfPracticeProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  concept PracticeConcept    @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, conceptId])
+}
+
+model PdfProblemAttempt {
+  id                  String   @id @default(cuid())
+  problemId           String
+  userId              String?
+  studentProfileId    String?
+  selectedChoiceLabel String?
+  freeResponseText    String?
+  isCorrect           Boolean?
+  skipped             Boolean  @default(false)
+  timeSpentSeconds    Int?
+  showedWork          Boolean?
+  workQualityJson     Json?
+  createdAt           DateTime @default(now())
+
+  problem PdfPracticeProblem           @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  strokes PdfAttemptStrokeSubmission?
+
+  @@index([problemId, createdAt])
+  @@index([studentProfileId])
+  @@index([studentProfileId, problemId])
+}
+
+model PdfAttemptStrokeSubmission {
+  id                  String   @id @default(cuid())
+  pdfProblemAttemptId String   @unique
+  strokeDataJson      Json
+  drawingSeconds      Float?
+  createdAt           DateTime @default(now())
+
+  attempt PdfProblemAttempt @relation(fields: [pdfProblemAttemptId], references: [id], onDelete: Cascade)
 }

@@ -3,6 +3,11 @@ import { prisma } from "./db";
 import { studentVisibleProblemWhere } from "./problem-student-gate";
 import type { Prisma } from "@/generated/prisma/client";
 
+/** When true, hide legacy bank problems so students only see PDF-upload practice. Default: both. */
+export function isPdfPracticeOnly(): boolean {
+  return process.env.PDF_PRACTICE_ONLY === "true";
+}
+
 function shuffle<T>(items: T[]): T[] {
   const array = [...items];
   for (let i = array.length - 1; i > 0; i--) {
@@ -117,6 +122,8 @@ export async function selectFreshProblemsForStudent(
   } = options;
 
   if (count <= 0) return [];
+
+  if (isPdfPracticeOnly()) return [];
 
   const seen = await getSeenProblemIds(studentId);
   const exclude = new Set([...seen, ...excludeProblemIds]);

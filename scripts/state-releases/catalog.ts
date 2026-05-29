@@ -45,7 +45,7 @@ export const STATE_SOURCES: StateSourceDef[] = [
     importMode: "FULL",
     subjects: ["math", "ela"],
     gradeRange: [3, 8],
-    yearRange: [2016, 2025],
+    yearRange: [2014, 2025],
   },
   {
     id: "ma-mcas-released",

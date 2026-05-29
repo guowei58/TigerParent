@@ -1,5 +1,19 @@
 import { prisma } from "./db";
 import { resolveAttemptWorkQuality } from "@/components/WorkQualityBadge";
+import { assetUrl, problemDisplayImagePath } from "@/lib/pdf/displayPaths";
+import { formatPracticeSubjectLabel } from "@/lib/pdf-practice/selection";
+import {
+  PDF_PRACTICE_REQUIRES_SCRATCHPAD,
+  resolvePdfAttemptWorkQuality,
+} from "@/lib/pdf-practice/attempt-strokes";
+import {
+  countPdfTopicSessions,
+  estimatePdfPracticeSeconds,
+} from "@/lib/pdf-practice/session-metrics";
+import {
+  countUniqueProblemsFromAttempts,
+  resolveProblemProgressForReporting,
+} from "@/lib/pdf-practice/progress-shared";
 import type { PracticeSession, Prisma } from "@/generated/prisma/client";
 import {
   formatDisplayDate,
@@ -172,9 +186,27 @@ export async function getWeeklyReport(studentId: string) {
   const sessions = await prisma.practiceSession.findMany({
     where: { studentId, startedAt: { gte: weekAgo } },
   });
-  const attempts = await prisma.attempt.findMany({
-    where: { studentId, createdAt: { gte: weekAgo } },
-  });
+  const [attempts, pdfAttempts] = await Promise.all([
+    prisma.attempt.findMany({
+      where: { studentId, createdAt: { gte: weekAgo } },
+      select: { problemId: true, isCorrect: true },
+    }),
+    prisma.pdfProblemAttempt.findMany({
+      where: { studentProfileId: studentId, createdAt: { gte: weekAgo } },
+      select: { problemId: true, isCorrect: true, skipped: true },
+    }),
+  ]);
+
+  const legacyStats = countUniqueProblemsFromAttempts(
+    attempts.map((a) => ({
+      problemId: a.problemId,
+      isCorrect: a.isCorrect,
+      skipped: false,
+    })),
+  );
+  const pdfStats = countUniqueProblemsFromAttempts(pdfAttempts);
+  const problemsAttempted = legacyStats.attempted + pdfStats.attempted;
+  const problemsCorrect = legacyStats.correct + pdfStats.correct;
 
   const daysActive = new Set(
     sessions.map((s) => s.startedAt.toISOString().slice(0, 10)),
@@ -183,11 +215,8 @@ export async function getWeeklyReport(studentId: string) {
   return {
     sessionsCompleted: sessions.filter((s) => s.completed).length,
     totalMinutes: sessions.reduce((s, sess) => s + sess.activeSeconds, 0) / 60,
-    problemsAttempted: attempts.length,
-    accuracy:
-      attempts.length > 0
-        ? attempts.filter((a) => a.isCorrect).length / attempts.length
-        : 0,
+    problemsAttempted,
+    accuracy: problemsAttempted > 0 ? problemsCorrect / problemsAttempted : 0,
     daysActive,
     consistencyScore: daysActive / 7,
   };
@@ -210,22 +239,65 @@ export type DailySkillSummary = {
   total: number;
 };
 
+export type DailyTopicSummary = {
+  conceptId: string;
+  title: string;
+  subjectLabel: string;
+  correct: number;
+  total: number;
+};
+
+export type DailyPdfWorkAttempt = {
+  id: string;
+  createdAt: Date;
+  isCorrect: boolean | null;
+  skipped: boolean;
+  selectedChoiceLabel: string | null;
+  freeResponseText: string | null;
+  timeSpentSeconds: number | null;
+  showedWork: boolean | null;
+  problemId: string;
+  topicTitle: string;
+  subjectLabel: string;
+  topicSlug: string | null;
+  imageUrl: string | null;
+  strokes: { strokeDataJson: unknown; drawingSeconds: number | null } | null;
+};
+
 export type DailyWorkSummary = {
   dateKey: string;
   displayDate: string;
   sessions: PracticeSession[];
   attempts: DailyWorkAttempt[];
+  pdfAttempts: DailyPdfWorkAttempt[];
   totalMinutes: number;
   problemsAttempted: number;
   problemsCorrect: number;
   accuracy: number | null;
   missionComplete: boolean;
   sessionsCompleted: number;
+  sessionCount: number;
+  pdfTopicSessionCount: number;
   skillsWorked: DailySkillSummary[];
+  topicsWorked: DailyTopicSummary[];
   scratchWorkShowed: number;
   scratchWorkRequiredMissing: number;
   narrative: string;
 };
+
+export function formatPdfAttemptAnswer(attempt: DailyPdfWorkAttempt): string {
+  if (attempt.skipped) return "Skipped";
+  if (attempt.selectedChoiceLabel) return `Choice ${attempt.selectedChoiceLabel}`;
+  if (attempt.freeResponseText?.trim()) return attempt.freeResponseText.trim();
+  return "—";
+}
+
+export function pdfAttemptStatusLabel(attempt: DailyPdfWorkAttempt): string {
+  if (attempt.skipped) return "Skipped";
+  if (attempt.isCorrect === true) return "Correct";
+  if (attempt.isCorrect === false) return "Incorrect";
+  return "Attempted";
+}
 
 function dayRange(dateKey: string) {
   const dayStart = parseLocalDateKey(dateKey);
@@ -242,14 +314,24 @@ export async function getStudentActiveDates(
   since.setDate(since.getDate() - daysBack);
   since.setHours(0, 0, 0, 0);
 
-  const attempts = await prisma.attempt.findMany({
-    where: { studentId, createdAt: { gte: since } },
-    select: { createdAt: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [attempts, pdfAttempts] = await Promise.all([
+    prisma.attempt.findMany({
+      where: { studentId, createdAt: { gte: since } },
+      select: { createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.pdfProblemAttempt.findMany({
+      where: { studentProfileId: studentId, createdAt: { gte: since } },
+      select: { createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   const keys = new Set<string>();
   for (const attempt of attempts) {
+    keys.add(localDateKey(attempt.createdAt));
+  }
+  for (const attempt of pdfAttempts) {
     keys.add(localDateKey(attempt.createdAt));
   }
   return [...keys].sort().reverse();
@@ -262,7 +344,7 @@ export async function getStudentDailyWork(
   const resolvedDateKey = dateKey ?? todayDateKey();
   const { dayStart, dayEnd } = dayRange(resolvedDateKey);
 
-  const [sessions, attempts, student] = await Promise.all([
+  const [sessions, attempts, pdfAttemptsRaw, student] = await Promise.all([
     prisma.practiceSession.findMany({
       where: { studentId, startedAt: { gte: dayStart, lt: dayEnd } },
       orderBy: { startedAt: "asc" },
@@ -272,23 +354,114 @@ export async function getStudentDailyWork(
       include: dailyAttemptInclude,
       orderBy: { createdAt: "asc" },
     }),
+    prisma.pdfProblemAttempt.findMany({
+      where: { studentProfileId: studentId, createdAt: { gte: dayStart, lt: dayEnd } },
+      include: {
+        strokes: true,
+        problem: {
+          include: {
+            primaryConcept: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.studentProfile.findUniqueOrThrow({
       where: { id: studentId },
       select: { displayName: true, dailyGoalMinutes: true },
     }),
   ]);
 
-  const totalSeconds = sessions.reduce((sum, s) => sum + s.activeSeconds, 0);
-  const problemsCorrect = attempts.filter((a) => a.isCorrect).length;
+  const pdfAttempts: DailyPdfWorkAttempt[] = pdfAttemptsRaw.map((row) => {
+    const concept = row.problem.primaryConcept;
+    const topicTitle =
+      concept?.name ?? row.problem.topic ?? `Problem ${row.problem.problemNumber}`;
+    const subjectLabel = concept
+      ? formatPracticeSubjectLabel(concept.subject)
+      : row.problem.subject
+        ? formatPracticeSubjectLabel(row.problem.subject)
+        : "Practice";
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      isCorrect: row.isCorrect,
+      skipped: row.skipped,
+      selectedChoiceLabel: row.selectedChoiceLabel,
+      freeResponseText: row.freeResponseText,
+      timeSpentSeconds: row.timeSpentSeconds,
+      showedWork: row.showedWork,
+      problemId: row.problemId,
+      topicTitle,
+      subjectLabel,
+      topicSlug: concept?.slug ?? null,
+      imageUrl: assetUrl(problemDisplayImagePath(row.problem)),
+      strokes: row.strokes
+        ? {
+            strokeDataJson: row.strokes.strokeDataJson,
+            drawingSeconds: row.strokes.drawingSeconds,
+          }
+        : null,
+    };
+  });
+
+  const sessionIdsWithAttempts = new Set(attempts.map((a) => a.sessionId));
+  const visibleSessions = sessions.filter(
+    (s) =>
+      s.completed || s.activeSeconds > 0 || sessionIdsWithAttempts.has(s.id),
+  );
+
+  const pdfSeconds = estimatePdfPracticeSeconds(
+    pdfAttempts.map((a) => ({
+      createdAt: a.createdAt,
+      timeSpentSeconds: a.timeSpentSeconds,
+    })),
+  );
+  const pdfTopicSessionCount = countPdfTopicSessions(
+    pdfAttemptsRaw.map((row) => ({
+      createdAt: row.createdAt,
+      conceptId: row.problem.primaryConcept?.id ?? null,
+    })),
+  );
+  const legacySessionCount = visibleSessions.length;
+  const sessionCount = legacySessionCount + pdfTopicSessionCount;
+  const totalSeconds =
+    sessions.reduce((sum, s) => sum + s.activeSeconds, 0) + pdfSeconds;
+  const legacyProblemStats = countUniqueProblemsFromAttempts(
+    attempts.map((a) => ({
+      problemId: a.problemId,
+      isCorrect: a.isCorrect,
+      skipped: false,
+    })),
+  );
+  const pdfProblemStats = countUniqueProblemsFromAttempts(
+    pdfAttempts.map((a) => ({
+      problemId: a.problemId,
+      isCorrect: a.isCorrect,
+      skipped: a.skipped,
+    })),
+  );
+  const problemsCorrect = legacyProblemStats.correct + pdfProblemStats.correct;
+  const problemsAttempted =
+    legacyProblemStats.attempted + pdfProblemStats.attempted;
   const accuracy =
-    attempts.length > 0 ? problemsCorrect / attempts.length : null;
+    problemsAttempted > 0 ? problemsCorrect / problemsAttempted : null;
   const missionComplete = sessions.some(
     (s) => s.sessionType === "DAILY_MISSION" && s.completed,
   );
 
   const skillMap = new Map<string, DailySkillSummary>();
+  const legacyAttemptsByProblem = new Map<string, typeof attempts>();
   for (const attempt of attempts) {
-    const skill = attempt.problem.skill;
+    const list = legacyAttemptsByProblem.get(attempt.problemId) ?? [];
+    list.push(attempt);
+    legacyAttemptsByProblem.set(attempt.problemId, list);
+  }
+  for (const problemAttempts of legacyAttemptsByProblem.values()) {
+    const skill = problemAttempts[0]!.problem.skill;
+    const status = resolveProblemProgressForReporting(
+      problemAttempts.map((a) => ({ isCorrect: a.isCorrect, skipped: false })),
+    );
+    if (!status) continue;
     const existing = skillMap.get(skill.id) ?? {
       skillId: skill.id,
       title: skill.title,
@@ -297,7 +470,7 @@ export async function getStudentDailyWork(
       total: 0,
     };
     existing.total += 1;
-    if (attempt.isCorrect) existing.correct += 1;
+    if (status === "correct") existing.correct += 1;
     skillMap.set(skill.id, existing);
   }
 
@@ -310,10 +483,56 @@ export async function getStudentDailyWork(
       scratchWorkRequiredMissing += 1;
     }
   }
+  for (const row of pdfAttemptsRaw) {
+    const quality = resolvePdfAttemptWorkQuality(row);
+    if (quality.showedWork) scratchWorkShowed += 1;
+    if (PDF_PRACTICE_REQUIRES_SCRATCHPAD && !quality.showedWork) {
+      scratchWorkRequiredMissing += 1;
+    }
+  }
 
   const skillsWorked = [...skillMap.values()].sort(
     (a, b) => b.total - a.total,
   );
+
+  const topicMap = new Map<string, DailyTopicSummary>();
+  const pdfAttemptsByProblem = new Map<string, typeof pdfAttemptsRaw>();
+  for (const row of pdfAttemptsRaw) {
+    const list = pdfAttemptsByProblem.get(row.problemId) ?? [];
+    list.push(row);
+    pdfAttemptsByProblem.set(row.problemId, list);
+  }
+  for (const problemAttempts of pdfAttemptsByProblem.values()) {
+    const row = problemAttempts[0]!;
+    const concept = row.problem.primaryConcept;
+    const key = concept?.id ?? row.problemId;
+    const title =
+      concept?.name ?? row.problem.topic ?? `Problem ${row.problem.problemNumber}`;
+    const subjectLabel = concept
+      ? formatPracticeSubjectLabel(concept.subject)
+      : row.problem.subject
+        ? formatPracticeSubjectLabel(row.problem.subject)
+        : "Practice";
+    const status = resolveProblemProgressForReporting(
+      problemAttempts.map((a) => ({
+        isCorrect: a.isCorrect,
+        skipped: a.skipped,
+      })),
+    );
+    if (!status) continue;
+    const existing = topicMap.get(key) ?? {
+      conceptId: key,
+      title,
+      subjectLabel,
+      correct: 0,
+      total: 0,
+    };
+    existing.total += 1;
+    if (status === "correct") existing.correct += 1;
+    topicMap.set(key, existing);
+  }
+
+  const topicsWorked = [...topicMap.values()].sort((a, b) => b.total - a.total);
   const displayDate = formatDisplayDate(resolvedDateKey);
   const totalMinutes = totalSeconds / 60;
   const narrative = buildDailyNarrative({
@@ -321,12 +540,14 @@ export async function getStudentDailyWork(
     displayDate,
     totalMinutes,
     dailyGoalMinutes: student.dailyGoalMinutes,
-    problemsAttempted: attempts.length,
+    problemsAttempted,
     problemsCorrect,
     accuracy,
     missionComplete,
-    sessionsCompleted: sessions.filter((s) => s.completed).length,
+    sessionsCompleted:
+      visibleSessions.filter((s) => s.completed).length + pdfTopicSessionCount,
     skillsWorked,
+    topicsWorked,
     scratchWorkShowed,
     scratchWorkRequiredMissing,
   });
@@ -334,15 +555,20 @@ export async function getStudentDailyWork(
   return {
     dateKey: resolvedDateKey,
     displayDate,
-    sessions,
+    sessions: visibleSessions,
     attempts,
+    pdfAttempts,
     totalMinutes,
-    problemsAttempted: attempts.length,
+    problemsAttempted,
     problemsCorrect,
     accuracy,
     missionComplete,
-    sessionsCompleted: sessions.filter((s) => s.completed).length,
+    sessionsCompleted:
+      visibleSessions.filter((s) => s.completed).length + pdfTopicSessionCount,
+    sessionCount,
+    pdfTopicSessionCount,
     skillsWorked,
+    topicsWorked,
     scratchWorkShowed,
     scratchWorkRequiredMissing,
     narrative,
@@ -360,6 +586,7 @@ function buildDailyNarrative(input: {
   missionComplete: boolean;
   sessionsCompleted: number;
   skillsWorked: DailySkillSummary[];
+  topicsWorked: DailyTopicSummary[];
   scratchWorkShowed: number;
   scratchWorkRequiredMissing: number;
 }) {
@@ -402,7 +629,13 @@ function buildDailyNarrative(input: {
     );
   }
 
-  if (input.skillsWorked.length > 0) {
+  if (input.topicsWorked.length > 0) {
+    const topicNames = input.topicsWorked
+      .slice(0, 4)
+      .map((t) => t.title)
+      .join(", ");
+    parts.push(` Topics: ${topicNames}.`);
+  } else if (input.skillsWorked.length > 0) {
     const skillNames = input.skillsWorked
       .slice(0, 4)
       .map((s) => s.title)
@@ -437,6 +670,46 @@ export async function getStudentAttemptDetail(
       session: true,
     },
   });
+}
+
+export async function getStudentPdfAttemptDetail(
+  studentId: string,
+  attemptId: string,
+) {
+  const row = await prisma.pdfProblemAttempt.findFirst({
+    where: { id: attemptId, studentProfileId: studentId },
+    include: {
+      strokes: true,
+      problem: { include: { primaryConcept: true } },
+    },
+  });
+  if (!row) return null;
+
+  const concept = row.problem.primaryConcept;
+  const topicTitle =
+    concept?.name ?? row.problem.topic ?? `Problem ${row.problem.problemNumber}`;
+  const subjectLabel = concept
+    ? formatPracticeSubjectLabel(concept.subject)
+    : row.problem.subject
+      ? formatPracticeSubjectLabel(row.problem.subject)
+      : "Practice";
+
+  return {
+    id: row.id,
+    createdAt: row.createdAt,
+    isCorrect: row.isCorrect,
+    skipped: row.skipped,
+    selectedChoiceLabel: row.selectedChoiceLabel,
+    freeResponseText: row.freeResponseText,
+    timeSpentSeconds: row.timeSpentSeconds,
+    showedWork: row.showedWork,
+    topicTitle,
+    subjectLabel,
+    topicSlug: concept?.slug ?? null,
+    imageUrl: assetUrl(problemDisplayImagePath(row.problem)),
+    strokes: row.strokes,
+    workQuality: resolvePdfAttemptWorkQuality(row),
+  };
 }
 
 export async function getStudentParentFeedback(studentId: string) {

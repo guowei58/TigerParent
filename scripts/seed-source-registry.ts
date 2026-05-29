@@ -46,7 +46,7 @@ async function main() {
         attributionText: entry.attributionText,
         allowedUseNotes: entry.notes,
         active: true,
-        importAllowed: entry.importStatus === "FULL_IMPORT_ALLOWED",
+        importAllowed: entry.importStatus !== "NEEDS_REVIEW",
       },
     });
   }

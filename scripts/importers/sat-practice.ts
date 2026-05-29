@@ -56,7 +56,7 @@ function pushSatItem(
   body: string,
   answerMap: Map<number, { answer: string; explanation: string }>,
 ) {
-  const choiceRe = /(?:^|\n)\s*([A-D])\s+(.+?)(?=(?:\n\s*[A-D]\s)|$)/gs;
+  const choiceRe = /(?:^|\n)\s*([A-D])\s+([\s\S]+?)(?=(?:\n\s*[A-D]\s)|$)/g;
   const choices: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = choiceRe.exec(body)) !== null) {

@@ -3,6 +3,8 @@ import type { ReleaseDownloadTarget } from "../catalog";
 import { parseMcasPdf } from "./mcas";
 import { parseNysedPdf } from "./nysed";
 import { parseStaarRelease, shouldSkipStaarDuplicate } from "./staar";
+import { parseVaSolPdf } from "./va-sol";
+import { parseGenericReleasedPdf } from "./generic-released";
 import type { ImportItemInput } from "@/lib/content-provenance/import-pipeline";
 import type { SkillContext } from "../../lib/import-helpers";
 
@@ -23,7 +25,18 @@ export async function parseReleasePdf(
     case "tea-staar":
       if (shouldSkipStaarDuplicate(target, staarParsed)) return [];
       return parseStaarRelease(target, ctx);
+    case "va-sol-released":
+      return parseVaSolPdf(target, ctx);
+    case "la-leap-released":
+      return parseGenericReleasedPdf(target, ctx);
     default:
+      if (
+        target.sourceId !== "tea-staar" &&
+        target.sourceId !== "nysed-released" &&
+        target.sourceId !== "ma-mcas-released"
+      ) {
+        return parseGenericReleasedPdf(target, ctx);
+      }
       return [];
   }
 }

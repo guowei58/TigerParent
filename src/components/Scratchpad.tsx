@@ -2,6 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { Button } from "./ui/Button";
+import { cn } from "@/lib/utils";
 import type { Stroke, StrokePoint } from "@/lib/strokes";
 
 export type { Stroke, StrokePoint };
@@ -15,9 +16,21 @@ type ScratchpadProps = {
   onChange?: (strokes: Stroke[], meta: ScratchpadMeta) => void;
   initialStrokes?: Stroke[];
   className?: string;
+  canvasClassName?: string;
+  /** Hides helper text and uses tighter controls */
+  compact?: boolean;
+  /** Undo / Clear overlay inside the dashed pad */
+  controlsInside?: boolean;
 };
 
-export function Scratchpad({ onChange, initialStrokes = [], className }: ScratchpadProps) {
+export function Scratchpad({
+  onChange,
+  initialStrokes = [],
+  className,
+  canvasClassName = "h-64 w-full touch-none rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50",
+  compact = false,
+  controlsInside = false,
+}: ScratchpadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
@@ -141,28 +154,63 @@ export function Scratchpad({ onChange, initialStrokes = [], className }: Scratch
     emitChange(next);
   };
 
+  const toolbar = (
+    <div className="flex gap-1">
+      <Button type="button" variant="secondary" size="sm" onClick={undo}>
+        Undo
+      </Button>
+      <Button type="button" variant="ghost" size="sm" onClick={clear}>
+        Clear
+      </Button>
+    </div>
+  );
+
+  if (controlsInside) {
+    return (
+      <div
+        className={cn(
+          "relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-slate-50",
+          className,
+        )}
+      >
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-start p-2">
+          <div className="pointer-events-auto flex gap-1 rounded-lg bg-white/90 p-0.5 shadow-sm backdrop-blur-sm">
+            {toolbar}
+          </div>
+        </div>
+        <canvas
+          ref={canvasRef}
+          className={cn(
+            "h-full min-h-0 w-full flex-1 touch-none border-0 bg-transparent",
+            canvasClassName,
+          )}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          style={{ touchAction: "none" }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={className}>
-      <div className="mb-2 flex gap-2">
-        <Button type="button" variant="secondary" size="sm" onClick={undo}>
-          Undo
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={clear}>
-          Clear
-        </Button>
-      </div>
+      <div className={cn("flex gap-2", compact ? "mb-1" : "mb-2")}>{toolbar}</div>
       <canvas
         ref={canvasRef}
-        className="h-64 w-full touch-none rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50"
+        className={canvasClassName}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
         style={{ touchAction: "none" }}
       />
-      <p className="mt-2 text-xs text-slate-400">
-        Use stylus, finger, or mouse to show your work
-      </p>
+      {!compact && (
+        <p className="mt-2 text-xs text-slate-400">
+          Use stylus, finger, or mouse to show your work
+        </p>
+      )}
     </div>
   );
 }

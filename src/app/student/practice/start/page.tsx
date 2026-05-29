@@ -11,7 +11,7 @@ export default async function StartAssignmentPage({
   if (!session?.user?.studentProfileId) redirect("/login");
 
   const { assignmentId } = await searchParams;
-  if (!assignmentId) redirect("/student/today");
+  if (!assignmentId) redirect("/student");
 
   const practiceSession = await startAssignment(assignmentId, session.user.studentProfileId);
   redirect(`/student/practice/${practiceSession.id}`);

@@ -11,8 +11,15 @@ type WorkQueueProps = {
   title: string;
   subtitle: string;
   assignments: Assignment[];
-  startHref: (assignment: Assignment) => string;
+  /** Base path for assignment links; assignment id is appended. */
+  startPathPrefix?: string;
 };
+
+const DEFAULT_START_PREFIX = "/student/practice/start?assignmentId=";
+
+function assignmentStartHref(assignmentId: string, prefix: string) {
+  return `${prefix}${assignmentId}`;
+}
 
 function statusVariant(status: AssignmentStatus) {
   switch (status) {
@@ -28,7 +35,12 @@ function statusVariant(status: AssignmentStatus) {
   }
 }
 
-export function WorkQueue({ title, subtitle, assignments, startHref }: WorkQueueProps) {
+export function WorkQueue({
+  title,
+  subtitle,
+  assignments,
+  startPathPrefix = DEFAULT_START_PREFIX,
+}: WorkQueueProps) {
   const completed = assignments.filter((a) => a.status === "COMPLETED" || a.status === "REVIEWED").length;
   const progress = assignments.length ? (completed / assignments.length) * 100 : 0;
 
@@ -81,7 +93,7 @@ export function WorkQueue({ title, subtitle, assignments, startHref }: WorkQueue
                     </p>
                   )}
                 </div>
-                <Link href={startHref(assignment)}>
+                <Link href={assignmentStartHref(assignment.id, startPathPrefix)}>
                   <Button>
                     {assignment.status === "COMPLETED" ? "Review" : assignment.status === "IN_PROGRESS" ? "Continue" : "Start"}
                   </Button>

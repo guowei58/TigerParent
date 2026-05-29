@@ -2,10 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { StudentSettingsForm } from "./StudentSettingsForm";
-import { ParentRewardGoalsSection } from "./ParentRewardGoalsSection";
 import { StudentNav } from "@/components/layouts/StudentNav";
-import { getActiveRewardGoals } from "@/lib/leaderboard";
-import { buildGoalProgress } from "@/lib/rewards";
 
 export default async function StudentSettingsPage() {
   const session = await auth();
@@ -18,15 +15,6 @@ export default async function StudentSettingsPage() {
   if (!student) redirect("/login");
 
   const onboarding = !(student.settings?.onboardingCompleted ?? true);
-  const activeGoalRecords = onboarding
-    ? []
-    : await getActiveRewardGoals(student.id);
-  const activeGoals = activeGoalRecords.map((g) =>
-    buildGoalProgress(g, {
-      xp: student.xp,
-      streakDays: student.streakDays,
-    }),
-  );
 
   return (
     <div className="pb-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
@@ -46,15 +34,6 @@ export default async function StudentSettingsPage() {
           initialSchoolGrade={student.schoolGrade}
           onboarding={onboarding}
         />
-        {!onboarding && (
-          <ParentRewardGoalsSection
-            studentXp={student.xp}
-            streakDays={student.streakDays}
-            dailyGoalMinutes={student.dailyGoalMinutes}
-            targetAheadMonths={student.targetAheadMonths}
-            activeGoals={activeGoals}
-          />
-        )}
       </main>
     </div>
   );

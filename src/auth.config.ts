@@ -46,6 +46,7 @@ export default {
       const publicPaths = [
         "/",
         "/login",
+        "/admin/login",
         "/signup",
         "/forgot-password",
         "/reset-password",

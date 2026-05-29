@@ -8,6 +8,8 @@ import { signOut } from "next-auth/react";
 
 const links = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/pdf-imports", label: "PDF Imports", icon: ClipboardList },
+  { href: "/admin/concepts", label: "Concepts", icon: BookOpen },
   { href: "/admin/subjects", label: "Subjects", icon: BookOpen },
   { href: "/admin/curriculum", label: "Curriculum", icon: BookOpen },
   { href: "/admin/problems", label: "Problems", icon: HelpCircle },

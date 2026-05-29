@@ -32,5 +32,5 @@ export async function POST() {
     });
   }
 
-  return NextResponse.json({ redirect: "/student/levels" });
+  return NextResponse.json({ redirect: "/student/concepts" });
 }

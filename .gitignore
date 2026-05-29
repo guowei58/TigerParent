@@ -45,3 +45,8 @@ yarn-error.log*
 /src/generated/
 *.tsbuildinfo
 next-env.d.ts
+
+# Local data / imports (PDFs, logs, parsed output — not for git)
+/data/
+/PracticeProblems/
+/.tmp-oatutor/

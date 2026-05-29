@@ -126,9 +126,9 @@ export function PracticeClient({
 
         <p className="text-slate-500">Try another unit from your lesson plan.</p>
 
-        <Button className="mt-4" onClick={() => router.push("/student/levels")}>
+        <Button className="mt-4" onClick={() => router.push("/student/concepts")}>
 
-          Lesson Plan
+          Practice by Topics
 
         </Button>
 
@@ -190,9 +190,9 @@ export function PracticeClient({
 
         ) : (
 
-          <Button onClick={() => router.push("/student/levels")}>
+          <Button onClick={() => router.push("/student/concepts")}>
 
-            Back to Lesson Plan
+            Back to Practice by Topics
 
           </Button>
 
