@@ -3,6 +3,7 @@
 import { signIn, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
+import { isDeprecatedParentPortalPath, portalPath } from "@/lib/auth-routes";
 import { Button } from "@/components/ui/Button";
 import {
   AuthField,
@@ -17,6 +18,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  const parentPortalNotice = searchParams.get("notice") === "parent-portal-removed";
   const verified = searchParams.get("verified") === "1";
 
   const [email, setEmail] = useState("");
@@ -58,7 +60,15 @@ function LoginForm() {
       return;
     }
 
-    router.push(callbackUrl);
+    const sessionRes = await fetch("/api/auth/session");
+    const session = (await sessionRes.json()) as { user?: { role?: string } };
+    const role = session?.user?.role ?? "STUDENT";
+    const destination =
+      callbackUrl === "/" || isDeprecatedParentPortalPath(callbackUrl)
+        ? portalPath(role)
+        : callbackUrl;
+
+    router.push(destination);
     router.refresh();
   };
 
@@ -127,8 +137,8 @@ function LoginForm() {
       subtitle="Sign in with your email"
       footer={
         <AuthLinkRow>
-          <p>
-            Parent creating an account? <AuthInlineLink href="/signup">Sign up</AuthInlineLink>
+          <p className="text-slate-500 text-sm">
+            Parents: open the <strong>Parents</strong> tab after signing in as a student.
           </p>
         </AuthLinkRow>
       }
@@ -156,6 +166,12 @@ function LoginForm() {
         </div>
 
         {error && <AuthMessage tone="error">{error}</AuthMessage>}
+        {parentPortalNotice && (
+          <AuthMessage tone="success">
+            The separate parent portal is no longer used. Sign in with a student account
+            (Parents tab is inside the student app) or an admin account.
+          </AuthMessage>
+        )}
         {info && <AuthMessage tone="success">{info}</AuthMessage>}
         {devLink && (
           <DevAuthLink

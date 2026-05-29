@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
 import { getAuthSecret } from "@/lib/auth-secret";
+import { isDeprecatedParentPortalPath, portalPath } from "@/lib/auth-routes";
 
 export type AppUserRole = "PARENT" | "STUDENT" | "TEACHER" | "ADMIN";
 
@@ -69,8 +70,8 @@ export default {
       if (path.startsWith("/admin") && role !== "ADMIN") {
         return NextResponse.redirect(new URL("/login", request.nextUrl));
       }
-      if (path.startsWith("/parent") && role !== "PARENT" && role !== "ADMIN") {
-        return NextResponse.redirect(new URL("/login", request.nextUrl));
+      if (isDeprecatedParentPortalPath(path)) {
+        return NextResponse.redirect(new URL(portalPath(role), request.nextUrl));
       }
       if (path.startsWith("/student") && role !== "STUDENT" && role !== "ADMIN") {
         return NextResponse.redirect(new URL("/login", request.nextUrl));

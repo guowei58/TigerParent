@@ -171,17 +171,4 @@ export async function requireRole(roles: AppUserRole[]) {
   return session;
 }
 
-export function portalPath(role: AppUserRole) {
-  switch (role) {
-    case "ADMIN":
-      return "/admin";
-    case "PARENT":
-      return "/parent";
-    case "STUDENT":
-      return "/student";
-    case "TEACHER":
-      return "/parent";
-    default:
-      return "/login";
-  }
-}
+export { portalPath } from "@/lib/auth-routes";
