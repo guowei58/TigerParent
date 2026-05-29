@@ -6,6 +6,8 @@ import {
   getSkillHighConfidenceGap,
 } from "@/lib/content-provenance/rights-audit";
 
+export const dynamic = "force-dynamic";
+
 export default async function ContentRightsAuditPage() {
   const [report, mcqAudit, skillGaps] = await Promise.all([
     getContentRightsAuditReport(),

@@ -8,6 +8,8 @@ import { StudentChatProvider } from "@/components/chat/StudentChatContext";
 import { StudentChatPanel } from "@/components/chat/StudentChatPanel";
 import { getPendingPopQuiz } from "@/lib/pop-quiz";
 
+export const dynamic = "force-dynamic";
+
 export default async function StudentLayout({
   children,
 }: {
