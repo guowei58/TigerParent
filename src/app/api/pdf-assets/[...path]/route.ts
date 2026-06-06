@@ -15,6 +15,9 @@ function contentTypeForExt(ext: string): string {
   if (ext === ".png") return "image/png";
   if (ext === ".webp") return "image/webp";
   if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".wav") return "audio/wav";
+  if (ext === ".webm") return "audio/webm";
+  if (ext === ".m4a") return "audio/mp4";
   return "application/octet-stream";
 }
 

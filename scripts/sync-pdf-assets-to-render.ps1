@@ -36,6 +36,17 @@ RENDER_SSH is not set.
   exit 1
 }
 
+# User may paste full "ssh user@host" — scp only wants user@host
+$RenderSsh = $RenderSsh.Trim() -replace '^ssh\s+', ''
+
+$sshKey = Join-Path $env:USERPROFILE ".ssh\id_ed25519"
+if (-not (Test-Path $sshKey)) {
+  Write-Error "No SSH private key at $sshKey — run: ssh-keygen -t ed25519 -C `"your@email.com`""
+  exit 1
+}
+
+$scpArgs = @("-o", "StrictHostKeyChecking=accept-new", "-i", $sshKey, "-r")
+
 foreach ($dir in @("pdf-crops", "pdf-pages")) {
   $local = Join-Path $data $dir
   if (-not (Test-Path $local)) {
@@ -43,7 +54,7 @@ foreach ($dir in @("pdf-crops", "pdf-pages")) {
     continue
   }
   Write-Host "Uploading $dir ..."
-  scp -r $local "${RenderSsh}:/opt/render/project/src/data/"
+  scp @scpArgs $local "${RenderSsh}:/opt/render/project/src/data/"
 }
 
 Write-Host @"

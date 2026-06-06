@@ -22,7 +22,7 @@ export default async function HomePage() {
           track, review, and advance — built for tablet learning with parent
           oversight.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex justify-center">
           <Link href="/login">
             <Button
               size="lg"
@@ -30,11 +30,6 @@ export default async function HomePage() {
               className="min-w-[200px] shadow-lg"
             >
               Sign In
-            </Button>
-          </Link>
-          <Link href="/signup">
-            <Button size="lg" className="min-w-[200px] shadow-lg">
-              Create Account
             </Button>
           </Link>
         </div>
@@ -45,8 +40,8 @@ export default async function HomePage() {
               desc: "30-minute daily missions, stylus work, lessons, and rewards",
             },
             {
-              title: "Parents",
-              desc: "Open the Parents tab in the student app — progress, time, and focus areas, no extra login",
+              title: "Review your kid's work",
+              desc: "Open Review Your Kid's Work in the student app — daily problems, scratch work, and reading recordings, no extra login",
             },
           ].map((item) => (
             <div

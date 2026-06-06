@@ -1,6 +1,8 @@
 import { prisma } from "./db";
 import { resolveAttemptWorkQuality } from "@/components/WorkQualityBadge";
 import { assetUrl, problemDisplayImagePath } from "@/lib/pdf/displayPaths";
+import { isElaReadingProblem } from "@/lib/pdf/elaDisplay";
+import { passageViewFromDb, type PdfPassageView } from "@/lib/pdf/passageView";
 import { formatPracticeSubjectLabel } from "@/lib/pdf-practice/selection";
 import {
   PDF_PRACTICE_REQUIRES_SCRATCHPAD,
@@ -261,6 +263,10 @@ export type DailyPdfWorkAttempt = {
   subjectLabel: string;
   topicSlug: string | null;
   imageUrl: string | null;
+  passageId: string | null;
+  passageTitle: string | null;
+  passage: PdfPassageView | null;
+  isElaReading: boolean;
   strokes: { strokeDataJson: unknown; drawingSeconds: number | null } | null;
 };
 
@@ -314,7 +320,7 @@ export async function getStudentActiveDates(
   since.setDate(since.getDate() - daysBack);
   since.setHours(0, 0, 0, 0);
 
-  const [attempts, pdfAttempts] = await Promise.all([
+  const [attempts, pdfAttempts, passageRecordings] = await Promise.all([
     prisma.attempt.findMany({
       where: { studentId, createdAt: { gte: since } },
       select: { createdAt: true },
@@ -325,6 +331,11 @@ export async function getStudentActiveDates(
       select: { createdAt: true },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.passageReadingRecording.findMany({
+      where: { studentProfileId: studentId, updatedAt: { gte: since } },
+      select: { updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+    }),
   ]);
 
   const keys = new Set<string>();
@@ -333,6 +344,9 @@ export async function getStudentActiveDates(
   }
   for (const attempt of pdfAttempts) {
     keys.add(localDateKey(attempt.createdAt));
+  }
+  for (const recording of passageRecordings) {
+    keys.add(localDateKey(recording.updatedAt));
   }
   return [...keys].sort().reverse();
 }
@@ -361,6 +375,17 @@ export async function getStudentDailyWork(
         problem: {
           include: {
             primaryConcept: true,
+            passage: {
+              select: {
+                id: true,
+                title: true,
+                promptText: true,
+                bodyText: true,
+                pageImagePaths: true,
+                passageNumber: true,
+                updatedAt: true,
+              },
+            },
           },
         },
       },
@@ -381,6 +406,12 @@ export async function getStudentDailyWork(
       : row.problem.subject
         ? formatPracticeSubjectLabel(row.problem.subject)
         : "Practice";
+    const passage = row.problem.passage;
+    const passageTitle = passage
+      ? passage.title?.trim() ||
+        passage.promptText?.trim().slice(0, 80) ||
+        `Passage ${passage.passageNumber}`
+      : null;
     return {
       id: row.id,
       createdAt: row.createdAt,
@@ -395,6 +426,10 @@ export async function getStudentDailyWork(
       subjectLabel,
       topicSlug: concept?.slug ?? null,
       imageUrl: assetUrl(problemDisplayImagePath(row.problem)),
+      passageId: row.problem.passageId,
+      passageTitle,
+      passage: passage ? passageViewFromDb(passage) : null,
+      isElaReading: isElaReadingProblem(row.problem),
       strokes: row.strokes
         ? {
             strokeDataJson: row.strokes.strokeDataJson,

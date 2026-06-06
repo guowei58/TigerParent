@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Check, ChevronDown } from "lucide-react";
 import {
   formatPracticeSubjectLabel,
   type PracticeGradeGroup,
@@ -21,20 +22,37 @@ type SubjectCatalog = {
   }[];
 };
 
-type SubjectTheme = {
+type SubjectAccent = {
+  tab: string;
   tabActive: string;
-  tabIdle: string;
-  iconBg: string;
-  iconText: string;
-  domainBg: string;
-  domainBorder: string;
-  progress: string;
-  progressComplete: string;
-  pillActive: string;
-  pillIdle: string;
-  rowHover: string;
-  rowTitleHover: string;
+  ring: string;
+  bar: string;
+  chip: string;
 };
+
+function isEnglishSubject(subject: string): boolean {
+  const s = subject.toLowerCase();
+  return s.includes("english") || s.includes("ela") || s.includes("reading");
+}
+
+function subjectAccent(subject: string): SubjectAccent {
+  if (isEnglishSubject(subject)) {
+    return {
+      tab: "text-violet-700",
+      tabActive: "bg-violet-600 text-white shadow-md shadow-violet-900/20",
+      ring: "ring-violet-200/80",
+      bar: "bg-violet-500",
+      chip: "bg-violet-50 text-violet-800",
+    };
+  }
+  return {
+    tab: "text-indigo-700",
+    tabActive: "bg-indigo-600 text-white shadow-md shadow-indigo-900/20",
+    ring: "ring-indigo-200/80",
+    bar: "bg-indigo-500",
+    chip: "bg-indigo-50 text-indigo-800",
+  };
+}
 
 function formatDomainLabel(domain: string): string {
   const trimmed = domain.trim();
@@ -46,60 +64,6 @@ function formatDomainLabel(domain: string): string {
     .split(/\s+/)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
-}
-
-function isEnglishSubject(subject: string): boolean {
-  const s = subject.toLowerCase();
-  return s.includes("english") || s.includes("ela") || s.includes("reading");
-}
-
-function subjectTheme(subject: string): SubjectTheme {
-  if (isEnglishSubject(subject)) {
-    return {
-      tabActive: "bg-violet-600 text-white shadow-sm shadow-violet-200",
-      tabIdle: "bg-white text-slate-600 border border-slate-200 hover:border-violet-200 hover:text-violet-700",
-      iconBg: "bg-violet-100",
-      iconText: "text-violet-800",
-      domainBg: "bg-violet-50/40",
-      domainBorder: "border-violet-100",
-      progress: "bg-violet-400",
-      progressComplete: "bg-emerald-500",
-      pillActive: "bg-violet-100 text-violet-800",
-      pillIdle: "bg-slate-100 text-slate-500",
-      rowHover: "hover:border-violet-100 hover:bg-white",
-      rowTitleHover: "group-hover:text-violet-800",
-    };
-  }
-  if (subject.toLowerCase().includes("math")) {
-    return {
-      tabActive: "bg-indigo-600 text-white shadow-sm shadow-indigo-200",
-      tabIdle: "bg-white text-slate-600 border border-slate-200 hover:border-indigo-200 hover:text-indigo-700",
-      iconBg: "bg-indigo-100",
-      iconText: "text-indigo-800",
-      domainBg: "bg-indigo-50/40",
-      domainBorder: "border-indigo-100",
-      progress: "bg-indigo-400",
-      progressComplete: "bg-emerald-500",
-      pillActive: "bg-indigo-100 text-indigo-800",
-      pillIdle: "bg-slate-100 text-slate-500",
-      rowHover: "hover:border-indigo-100 hover:bg-white",
-      rowTitleHover: "group-hover:text-indigo-800",
-    };
-  }
-  return {
-    tabActive: "bg-slate-700 text-white shadow-sm",
-    tabIdle: "bg-white text-slate-600 border border-slate-200 hover:border-slate-300",
-    iconBg: "bg-slate-100",
-    iconText: "text-slate-700",
-    domainBg: "bg-slate-50",
-    domainBorder: "border-slate-200",
-    progress: "bg-slate-400",
-    progressComplete: "bg-emerald-500",
-    pillActive: "bg-slate-200 text-slate-800",
-    pillIdle: "bg-slate-100 text-slate-500",
-    rowHover: "hover:border-slate-200 hover:bg-white",
-    rowTitleHover: "group-hover:text-slate-900",
-  };
 }
 
 function pivotCatalog(catalog: PracticeGradeGroup[]): SubjectCatalog[] {
@@ -135,135 +99,104 @@ function pivotCatalog(catalog: PracticeGradeGroup[]): SubjectCatalog[] {
     });
 }
 
-function gradeStats(grade: SubjectCatalog["grades"][0]) {
-  let topics = 0;
-  let total = 0;
-  let done = 0;
-
-  if (grade.passages?.length) {
-    topics += grade.passages.length;
-    for (const p of grade.passages) {
-      total += p.totalCount;
-      done += p.doneCount;
-    }
-  }
-  for (const domain of grade.domains) {
-    topics += domain.topics.length;
-    for (const t of domain.topics) {
-      total += t.totalCount;
-      done += t.doneCount;
-    }
-  }
-
-  return { topics, total, done, left: Math.max(0, total - done) };
-}
-
 function subjectStats(subject: SubjectCatalog) {
   let topics = 0;
   let total = 0;
   let done = 0;
   for (const grade of subject.grades) {
-    const s = gradeStats(grade);
-    topics += s.topics;
-    total += s.total;
-    done += s.done;
+    if (grade.passages?.length) {
+      topics += grade.passages.length;
+      for (const p of grade.passages) {
+        total += p.totalCount;
+        done += p.doneCount;
+      }
+    }
+    for (const domain of grade.domains) {
+      topics += domain.topics.length;
+      for (const t of domain.topics) {
+        total += t.totalCount;
+        done += t.doneCount;
+      }
+    }
   }
   return { topics, total, done };
 }
 
-function ProgressPill({
+function topicStatus(done: number, total: number) {
+  if (total <= 0) return "empty" as const;
+  if (done >= total) return "complete" as const;
+  if (done > 0) return "progress" as const;
+  return "new" as const;
+}
+
+function TopicCard({
+  href,
+  title,
+  subtitle,
   done,
   total,
-  theme,
+  accent,
 }: {
+  href: string;
+  title: string;
+  subtitle?: string | null;
   done: number;
   total: number;
-  theme: SubjectTheme;
+  accent: SubjectAccent;
 }) {
-  const complete = total > 0 && done >= total;
-  return (
-    <span
-      className={cn(
-        "shrink-0 text-[11px] font-semibold tabular-nums px-2.5 py-0.5 rounded-full",
-        complete ? "bg-emerald-50 text-emerald-700" : done > 0 ? theme.pillActive : theme.pillIdle,
-      )}
-    >
-      {complete ? "Done" : `${done}/${total}`}
-    </span>
-  );
-}
-
-function TopicRow({ topic, theme }: { topic: PracticeTopicItem; theme: SubjectTheme }) {
-  const pct = topic.totalCount > 0 ? Math.min(100, (topic.doneCount / topic.totalCount) * 100) : 0;
-  const complete = topic.totalCount > 0 && topic.leftCount === 0;
+  const status = topicStatus(done, total);
+  const pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
 
   return (
     <Link
-      href={`/student/concepts/${topic.slug}?grade=${topic.gradeLevel}`}
+      href={href}
       className={cn(
-        "group flex flex-col gap-2 rounded-xl border border-transparent px-3 py-2.5 transition-all",
-        theme.rowHover,
-      )}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className={cn("text-sm font-medium text-slate-800 leading-snug", theme.rowTitleHover)}>
-          {topic.name}
-        </span>
-        <ProgressPill done={topic.doneCount} total={topic.totalCount} theme={theme} />
-      </div>
-      <div
-        className="h-1 rounded-full bg-white/80 ring-1 ring-slate-100 overflow-hidden"
-        role="progressbar"
-        aria-valuenow={topic.doneCount}
-        aria-valuemin={0}
-        aria-valuemax={topic.totalCount}
-        aria-label={`${topic.doneCount} of ${topic.totalCount} complete`}
-      >
-        <div
-          className={cn("h-full rounded-full transition-[width]", complete ? theme.progressComplete : theme.progress)}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </Link>
-  );
-}
-
-function PassageRow({ passage, theme }: { passage: PracticePassageItem; theme: SubjectTheme }) {
-  const pct =
-    passage.totalCount > 0 ? Math.min(100, (passage.doneCount / passage.totalCount) * 100) : 0;
-  const complete = passage.totalCount > 0 && passage.leftCount === 0;
-
-  return (
-    <Link
-      href={`/student/passages/${passage.id}?grade=${passage.gradeLevel}`}
-      className={cn(
-        "group flex flex-col gap-2 rounded-xl border border-transparent px-3 py-2.5 transition-all",
-        theme.rowHover,
+        "group block rounded-2xl bg-white/95 px-4 py-3.5 shadow-sm ring-1 transition-all",
+        "hover:shadow-md hover:-translate-y-0.5",
+        status === "complete"
+          ? "ring-emerald-200/90 hover:ring-emerald-300"
+          : cn(accent.ring, "hover:ring-slate-300"),
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className={cn("block text-sm font-medium text-slate-800 leading-snug", theme.rowTitleHover)}>
-            {passage.title}
-          </span>
-          {passage.subtitle && (
-            <span className="mt-0.5 block text-xs text-slate-400 truncate">{passage.subtitle}</span>
+          <p className="text-[15px] font-semibold text-slate-900 leading-snug group-hover:text-slate-950">
+            {title}
+          </p>
+          {subtitle && (
+            <p className="mt-0.5 text-xs text-slate-500 truncate">{subtitle}</p>
           )}
         </div>
-        <ProgressPill done={passage.doneCount} total={passage.totalCount} theme={theme} />
+        {status === "complete" ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+            <Check className="h-3.5 w-3.5" aria-hidden />
+            Done
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium tabular-nums",
+              status === "progress" ? accent.chip : "bg-slate-100 text-slate-500",
+            )}
+          >
+            {status === "new" ? `${total} problems` : `${done} of ${total}`}
+          </span>
+        )}
       </div>
-      <div
-        className="h-1 rounded-full bg-white/80 ring-1 ring-slate-100 overflow-hidden"
-        role="progressbar"
-        aria-valuenow={passage.doneCount}
-        aria-valuemin={0}
-        aria-valuemax={passage.totalCount}
-      >
+      {status === "progress" && (
         <div
-          className={cn("h-full rounded-full transition-[width]", complete ? theme.progressComplete : theme.progress)}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+          className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"
+          role="progressbar"
+          aria-valuenow={done}
+          aria-valuemin={0}
+          aria-valuemax={total}
+        >
+          <div
+            className={cn("h-full rounded-full transition-[width]", accent.bar)}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
     </Link>
   );
 }
@@ -296,51 +229,58 @@ export function PracticeTopicCatalog({
   const [activeSubject, setActiveSubject] = useState(() =>
     resolveInitialSubject(subjects, highlightSubject),
   );
+  const [openGrade, setOpenGrade] = useState<number | null>(null);
 
   if (subjects.length === 0) {
     return (
-      <p className="text-slate-600 text-base leading-relaxed">
+      <p className="rounded-2xl bg-white/95 px-5 py-4 text-slate-600 text-sm leading-relaxed shadow-sm ring-1 ring-white/80">
         No approved practice topics yet. Ask your admin to upload and approve PDF problems.
       </p>
     );
   }
 
   const current = subjects.find((s) => s.subjectKey === activeSubject) ?? subjects[0]!;
-  const theme = subjectTheme(current.subjectKey);
+  const accent = subjectAccent(current.subjectKey);
   const stats = subjectStats(current);
+  const pctDone = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+  const defaultOpenGrade = current.grades[0]?.gradeLevel ?? null;
+  const expandedGrade = openGrade ?? defaultOpenGrade;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {subjects.length > 1 && (
         <div
-          className="flex flex-wrap gap-2"
+          className="grid grid-cols-2 gap-2 rounded-2xl bg-white/40 p-1.5 ring-1 ring-white/60 backdrop-blur-sm"
           role="tablist"
           aria-label="Choose subject"
         >
           {subjects.map((subject) => {
             const s = subjectStats(subject);
             const active = subject.subjectKey === current.subjectKey;
-            const t = subjectTheme(subject.subjectKey);
+            const a = subjectAccent(subject.subjectKey);
             return (
               <button
                 key={subject.subjectKey}
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setActiveSubject(subject.subjectKey)}
+                onClick={() => {
+                  setActiveSubject(subject.subjectKey);
+                  setOpenGrade(null);
+                }}
                 className={cn(
-                  "rounded-xl px-4 py-2.5 text-left transition-all min-w-[8.5rem]",
-                  active ? t.tabActive : t.tabIdle,
+                  "rounded-xl px-4 py-3 text-left transition-all",
+                  active ? a.tabActive : "bg-white/70 text-slate-700 hover:bg-white",
                 )}
               >
-                <span className="block text-sm font-semibold">{subject.label}</span>
+                <span className="block text-base font-semibold">{subject.label}</span>
                 <span
                   className={cn(
-                    "block text-[11px] tabular-nums mt-0.5",
-                    active ? "text-white/80" : "text-slate-400",
+                    "mt-0.5 block text-xs tabular-nums",
+                    active ? "text-white/85" : "text-slate-500",
                   )}
                 >
-                  {s.topics} topics · {s.done}/{s.total}
+                  {s.topics} topics
                 </span>
               </button>
             );
@@ -348,112 +288,115 @@ export function PracticeTopicCatalog({
         </div>
       )}
 
-      <section
+      <div
         role="tabpanel"
         aria-label={current.label}
-        className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden"
+        className="rounded-2xl bg-white/90 px-5 py-4 shadow-sm ring-1 ring-white/80 backdrop-blur-sm"
       >
-        <div className={cn("border-b border-slate-100 px-5 py-4", theme.domainBg)}>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">{current.label}</h2>
-              <p className="text-xs text-slate-500 mt-1 tabular-nums">
-                {current.grades.length} grade{current.grades.length === 1 ? "" : "s"} · {stats.topics}{" "}
-                topics · {stats.done}/{stats.total} done
-              </p>
-            </div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className={cn("text-sm font-semibold", accent.tab)}>{current.label}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{pctDone}%</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {stats.done} of {stats.total} problems completed
+            </p>
           </div>
+          <p className="text-xs text-slate-500">
+            {current.grades.length} grade{current.grades.length === 1 ? "" : "s"} · {stats.topics}{" "}
+            topics
+          </p>
         </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className={cn("h-full rounded-full transition-[width]", accent.bar)}
+            style={{ width: `${pctDone}%` }}
+          />
+        </div>
+      </div>
 
-        <div className="divide-y divide-slate-100">
-          {current.grades.map((grade, gradeIndex) => {
-            const gStats = gradeStats(grade);
+      <div className="space-y-3">
+        {current.grades.map((grade) => {
+          const isOpen = expandedGrade === grade.gradeLevel;
+          let topicCount = 0;
+          if (grade.passages?.length) topicCount += grade.passages.length;
+          for (const d of grade.domains) topicCount += d.topics.length;
 
-            return (
-              <details
-                key={grade.gradeLevel}
-                open={gradeIndex === 0}
-                className="group/grade"
+          return (
+            <div
+              key={grade.gradeLevel}
+              className="overflow-hidden rounded-2xl bg-white/92 shadow-sm ring-1 ring-white/80"
+            >
+              <button
+                type="button"
+                aria-expanded={isOpen}
+                onClick={() =>
+                  setOpenGrade(isOpen ? null : grade.gradeLevel)
+                }
+                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-white transition-colors"
               >
-                <summary
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">{grade.label}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">{topicCount} topics</p>
+                </div>
+                <ChevronDown
                   className={cn(
-                    "flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3.5",
-                    "hover:bg-slate-50/70 transition-colors",
-                    "[&::-webkit-details-marker]:hidden",
+                    "h-5 w-5 shrink-0 text-slate-400 transition-transform",
+                    isOpen && "rotate-180",
                   )}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
-                        theme.iconBg,
-                        theme.iconText,
-                      )}
-                      aria-hidden
-                    >
-                      {grade.gradeLevel > 0 ? grade.gradeLevel : "·"}
-                    </span>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-semibold text-slate-900">{grade.label}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
-                        {gStats.topics} topics · {gStats.done}/{gStats.total} done
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-slate-300 text-[10px] shrink-0 group-open/grade:rotate-180 transition-transform">
-                    ▼
-                  </span>
-                </summary>
+                  aria-hidden
+                />
+              </button>
 
-                <div className="px-4 pb-5 pt-1 space-y-4 bg-slate-50/50">
+              {isOpen && (
+                <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-8">
                   {grade.passages && grade.passages.length > 0 && (
-                    <div
-                      className={cn(
-                        "rounded-xl border p-3 sm:p-4",
-                        theme.domainBorder,
-                        theme.domainBg,
-                      )}
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 px-1">
+                    <section>
+                      <h4 className="text-sm font-semibold text-slate-700 mb-3">
                         Reading passages
-                      </p>
-                      <ul className="grid gap-1 sm:grid-cols-2">
+                      </h4>
+                      <ul className="flex flex-col gap-2">
                         {grade.passages.map((passage) => (
                           <li key={passage.id}>
-                            <PassageRow passage={passage} theme={theme} />
+                            <TopicCard
+                              href={`/student/passages/${passage.id}?grade=${passage.gradeLevel}`}
+                              title={passage.title}
+                              subtitle={passage.subtitle}
+                              done={passage.doneCount}
+                              total={passage.totalCount}
+                              accent={accent}
+                            />
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </section>
                   )}
 
                   {grade.domains.map((domainGroup) => (
-                    <div
-                      key={domainGroup.domain}
-                      className={cn(
-                        "rounded-xl border p-3 sm:p-4",
-                        theme.domainBorder,
-                        theme.domainBg,
-                      )}
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 px-1">
+                    <section key={domainGroup.domain}>
+                      <h4 className="text-sm font-semibold text-slate-700 mb-3">
                         {formatDomainLabel(domainGroup.domain)}
-                      </p>
-                      <ul className="grid gap-1 sm:grid-cols-2">
+                      </h4>
+                      <ul className="flex flex-col gap-2">
                         {domainGroup.topics.map((topic) => (
                           <li key={`${topic.id}-${topic.gradeLevel}`}>
-                            <TopicRow topic={topic} theme={theme} />
+                            <TopicCard
+                              href={`/student/concepts/${topic.slug}?grade=${topic.gradeLevel}`}
+                              title={topic.name}
+                              done={topic.doneCount}
+                              total={topic.totalCount}
+                              accent={accent}
+                            />
                           </li>
                         ))}
                       </ul>
-                    </div>
+                    </section>
                   ))}
                 </div>
-              </details>
-            );
-          })}
-        </div>
-      </section>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -72,16 +72,13 @@ Set `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/tigerparent?sche
 npm run db:setup
 ```
 
-## Demo Accounts
+## Demo Account
 
-Password for all demo accounts: `demo1234`
+Password: `demo1234`
 
 | Role | Email |
 |------|-------|
 | Admin | admin@tigerparent.local |
-| Parent | parent@tigerparent.local |
-| Student A (entering 4th grade) | studenta@tigerparent.local |
-| Student B (entering 6th grade) | studentb@tigerparent.local |
 
 ## Deploy to Render (tigerparent.study)
 
@@ -151,9 +148,7 @@ Same flow as B2 but with `R2_*` env vars — only if Cloudflare activation succe
 
 ### 3. Student accounts
 
-Kids sign in at `https://tigerparent.study/login` with accounts you create (email + password). Demo accounts from seed (`studenta@tigerparent.local` / `demo1234`) only exist if you ran seed against production DB.
-
-To add students in production, use the admin portal or run seed/setup against the Render database.
+Sign-up is closed — accounts are created manually (see `scripts/create-student-accounts.ts`). Students sign in at `/login`.
 
 ### 4. Verify production
 
@@ -165,8 +160,7 @@ Open a practice topic and confirm a question image loads. Or test directly:
 
 ## Portals
 
-- **Student**: `/student` — daily mission, lessons, practice, stylus scratchpad, rewards
-- **Parent**: `/parent` — family dashboard, placement, work review, reports
+- **Student**: `/student` — daily mission, lessons, practice, stylus scratchpad, rewards (includes a Parents tab for progress sharing)
 - **Admin**: `/admin` — curriculum, problems, video approval
 
 ## Curriculum

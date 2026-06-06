@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { OpenResponseRevealPanel } from "@/components/pdf/OpenResponseRevealPanel";
 import { FormattedExplanation } from "@/components/pdf/FormattedExplanation";
 import { PdfPassagePanel, type PdfPassageView } from "@/components/pdf/PdfPassagePanel";
+import { PassageReadingRecorder } from "@/components/pdf/PassageReadingRecorder";
 import {
   elaPassageGroupInfo,
   elaQuestionStem,
@@ -147,6 +148,7 @@ export function PdfPracticeClient({
     () => (current ? elaPassageGroupInfo(problems, current) : null),
     [current, problems],
   );
+  const effectivePassageId = passageId ?? current?.passageId ?? null;
   const questionStem = current
     ? elaQuestionStem(current.cleanedText, current.choices)
     : "";
@@ -622,13 +624,16 @@ export function PdfPracticeClient({
 
       {isElaReading ? (
         <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-          <aside className="lg:sticky lg:top-4 space-y-2">
+          <aside className="lg:sticky lg:top-4 space-y-3">
             {displayPassage ? (
               <PdfPassagePanel passage={displayPassage} variant="student" />
             ) : (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                 Reading passage is not linked to this question yet.
               </div>
+            )}
+            {effectivePassageId && (
+              <PassageReadingRecorder passageId={effectivePassageId} />
             )}
           </aside>
           <section className="space-y-4 min-w-0">

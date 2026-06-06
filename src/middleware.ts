@@ -5,7 +5,10 @@ const { auth } = NextAuth(authConfig);
 
 export default auth;
 
-/** Only protect app areas — skip `/` so stale cookies don't crash the landing page. */
+/**
+ * Only protect /admin at the edge. Student routes auth in Node (student/layout.tsx)
+ * because edge JWT decryption often fails in local dev — see auth.config.ts.
+ */
 export const config = {
-  matcher: ["/student/:path*", "/parent/:path*", "/admin/:path*"],
+  matcher: ["/admin/:path*"],
 };

@@ -57,7 +57,7 @@ export default async function SatFoundationPage() {
           Official SAT practice is tracked separately via linked College Board / Khan Academy resources in parent settings.
         </p>
         <Link href="/student/for-parents" className="text-indigo-600 text-sm font-medium">
-          Parent view →
+          Review your kid&apos;s work →
         </Link>
       </main>
     </div>

@@ -35,6 +35,39 @@ export function parsedAuditDir(): string {
   return path.join(DATA_ROOT, "parsed");
 }
 
+export function passageRecordingRelPath(
+  studentProfileId: string,
+  passageId: string,
+  ext = ".webm",
+): string {
+  return `passage-recordings/${studentProfileId}/${passageId}${ext}`;
+}
+
+export function savePassageRecordingFile(
+  studentProfileId: string,
+  passageId: string,
+  buffer: Buffer,
+  mimeType: string,
+): string {
+  const ext = mimeType.includes("wav")
+    ? ".wav"
+    : mimeType.includes("mp4") || mimeType.includes("m4a")
+      ? ".m4a"
+      : ".webm";
+  const rel = passageRecordingRelPath(studentProfileId, passageId, ext);
+  const abs = resolveDataPath(rel);
+  ensureDir(path.dirname(abs));
+  fs.writeFileSync(abs, buffer);
+  return toDataRelativePath(rel);
+}
+
+export function deletePassageRecordingFile(storedPath: string) {
+  const abs = resolveDataPath(storedPath);
+  if (fs.existsSync(abs)) {
+    fs.unlinkSync(abs);
+  }
+}
+
 export function ensureDir(dir: string) {
   fs.mkdirSync(dir, { recursive: true });
 }

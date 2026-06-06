@@ -487,6 +487,7 @@ model StudentProfile {
   schoolUnits            SchoolUnit[]
   schoolReadinessScores  SchoolReadinessScore[]
   satFoundationScores    SATFoundationScore[]
+  passageReadingRecordings PassageReadingRecording[]
 }
 
 model MistakeDayReview {
@@ -1554,9 +1555,27 @@ model PdfReadingPassage {
 
   sourceDocument PdfSourceDocument  @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
   problems       PdfPracticeProblem[]
+  readingRecordings PassageReadingRecording[]
 
   @@unique([sourceDocumentId, passageNumber])
   @@index([sourceDocumentId])
+}
+
+model PassageReadingRecording {
+  id               String   @id @default(cuid())
+  passageId        String
+  studentProfileId String
+  storagePath      String
+  durationSeconds  Int?
+  mimeType         String   @default("audio/webm")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  passage        PdfReadingPassage @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  studentProfile StudentProfile    @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([passageId, studentProfileId])
+  @@index([studentProfileId, updatedAt])
 }
 
 model PracticeConcept {

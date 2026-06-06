@@ -56,7 +56,7 @@ async function main() {
   console.log("Seeding demo data...");
   execSync("npx tsx prisma/seed.ts", { stdio: "inherit" });
 
-  console.log("\nSetup complete. Demo login: studenta@tigerparent.local / demo1234");
+  console.log("\nSetup complete. Demo login: admin@tigerparent.local / demo1234");
 }
 
 main().catch((err) => {

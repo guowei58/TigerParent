@@ -57,7 +57,7 @@ export async function sendVerificationEmail(email: string, name: string) {
     to: email,
     subject: "Verify your TigerParent email",
     title: `Welcome, ${name}!`,
-    body: "Confirm your email address to activate your parent account.",
+    body: "Confirm your email address to activate your student account.",
     actionLabel: "Verify email",
     actionUrl: url,
   });
@@ -113,7 +113,7 @@ export async function sendStudentInviteEmail(email: string, displayName: string)
     to: email,
     subject: "Your TigerParent student account is ready",
     title: `Welcome, ${displayName}!`,
-    body: "Your parent created a TigerParent account for you. Set your password to start learning.",
+    body: "Set your password to start learning on TigerParent.",
     actionLabel: "Set my password",
     actionUrl: url,
   });

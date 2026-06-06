@@ -193,17 +193,6 @@ async function main() {
   console.log("Seeding TigerParent...");
 
   const passwordHash = await bcrypt.hash("demo1234", 10);
-
-  const family = await prisma.organization.upsert({
-    where: { id: "demo-family" },
-    update: {},
-    create: {
-      id: "demo-family",
-      name: "Demo Family",
-      type: "FAMILY",
-    },
-  });
-
   const verifiedAt = new Date();
 
   const admin = await prisma.user.upsert({
@@ -218,146 +207,13 @@ async function main() {
     },
   });
 
-  const parent = await prisma.user.upsert({
-    where: { email: "parent@tigerparent.local" },
-    update: { emailVerified: verifiedAt },
-    create: {
-      email: "parent@tigerparent.local",
-      name: "Demo Parent",
-      password: passwordHash,
-      role: "PARENT",
-      familyId: family.id,
-      emailVerified: verifiedAt,
-    },
-  });
-
-  const mathSubject = await seedCurriculum("math", "Math", MATH_CURRICULUM);
-  const englishSubject = await seedCurriculum("english", "English", ENGLISH_CURRICULUM);
-
-  const students = [
-    {
-      id: "student-a",
-      email: "studenta@tigerparent.local",
-      name: "Alex Chen",
-      displayName: "Alex",
-      schoolGrade: 4,
-    },
-    {
-      id: "student-b",
-      email: "studentb@tigerparent.local",
-      name: "Jordan Chen",
-      displayName: "Jordan",
-      schoolGrade: 6,
-    },
-  ];
-
-  for (const s of students) {
-    const user = await prisma.user.upsert({
-      where: { email: s.email },
-      update: { emailVerified: verifiedAt },
-      create: {
-        email: s.email,
-        name: s.name,
-        password: passwordHash,
-        role: "STUDENT",
-        familyId: family.id,
-        emailVerified: verifiedAt,
-      },
-    });
-
-    const profile = await prisma.studentProfile.upsert({
-      where: { userId: user.id },
-      update: {},
-      create: {
-        id: s.id,
-        userId: user.id,
-        familyId: family.id,
-        displayName: s.displayName,
-        schoolGrade: s.schoolGrade,
-        targetAheadMonths: 6,
-        dailyGoalMinutes: 30,
-        xp: 0,
-        streakDays: 0,
-      },
-    });
-
-    await prisma.studentSettings.upsert({
-      where: { studentId: profile.id },
-      update: { onboardingCompleted: true },
-      create: { studentId: profile.id, onboardingCompleted: true },
-    });
-
-    for (const subject of [mathSubject, englishSubject]) {
-      await prisma.studentSubject.upsert({
-        where: {
-          studentId_subjectId: { studentId: profile.id, subjectId: subject.id },
-        },
-        update: {},
-        create: {
-          studentId: profile.id,
-          subjectId: subject.id,
-          enabled: true,
-        },
-      });
-
-      const startLevel = await prisma.level.findFirst({
-        where: {
-          subjectId: subject.id,
-          nominalGradeLevel: s.schoolGrade,
-        },
-        include: { skills: { orderBy: { sequence: "asc" }, take: 1 } },
-      });
-
-      if (startLevel?.skills[0]) {
-        await prisma.studentSubjectPlacement.upsert({
-          where: {
-            studentId_subjectId: {
-              studentId: profile.id,
-              subjectId: subject.id,
-            },
-          },
-          update: {
-            currentLevelId: startLevel.id,
-            currentSkillId: startLevel.skills[0].id,
-            assessedGradeLevel: s.schoolGrade,
-          },
-          create: {
-            studentId: profile.id,
-            subjectId: subject.id,
-            schoolGrade: s.schoolGrade,
-            assessedGradeLevel: s.schoolGrade,
-            currentLevelId: startLevel.id,
-            currentSkillId: startLevel.skills[0].id,
-            monthsAheadOrBehind: 0,
-            confidenceScore: 0.5,
-          },
-        });
-
-        await prisma.masteryState.upsert({
-          where: {
-            studentId_skillId: {
-              studentId: profile.id,
-              skillId: startLevel.skills[0].id,
-            },
-          },
-          update: {},
-          create: {
-            studentId: profile.id,
-            skillId: startLevel.skills[0].id,
-            status: "LEARNING",
-          },
-        });
-      }
-    }
-  }
+  await seedCurriculum("math", "Math", MATH_CURRICULUM);
+  await seedCurriculum("english", "English", ENGLISH_CURRICULUM);
 
   console.log("Seed complete!");
   console.log("");
-  console.log("Demo accounts (password: demo1234):");
-  console.log(`  Admin:   ${admin.email}`);
-  console.log(`  Parent:  ${parent.email}`);
-  console.log(`  Student A (4th grade): ${students[0].email}`);
-  console.log(`  Student B (6th grade): ${students[1].email}`);
+  console.log("Demo account (password: demo1234):");
+  console.log(`  Admin: ${admin.email}`);
 }
 
 main()

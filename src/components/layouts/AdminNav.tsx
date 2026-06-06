@@ -3,28 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, BookOpen, HelpCircle, Video, LogOut, ShieldCheck, ClipboardList } from "lucide-react";
+import { LayoutDashboard, ClipboardList, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 
-const links = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+const links: { href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean }[] = [
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/pdf-imports", label: "PDF Imports", icon: ClipboardList },
-  { href: "/admin/concepts", label: "Concepts", icon: BookOpen },
-  { href: "/admin/subjects", label: "Subjects", icon: BookOpen },
-  { href: "/admin/curriculum", label: "Curriculum", icon: BookOpen },
-  { href: "/admin/problems", label: "Problems", icon: HelpCircle },
-  { href: "/admin/problem-review", label: "Review Queue", icon: ShieldCheck },
-  { href: "/admin/sources", label: "Sources", icon: BookOpen },
-  { href: "/admin/benchmark-bank", label: "Benchmarks", icon: ShieldCheck },
-  { href: "/admin/homework-builder", label: "Homework", icon: ClipboardList },
-  { href: "/admin/test-builder", label: "Tests", icon: ClipboardList },
-  { href: "/admin/question-bank", label: "Q Bank", icon: HelpCircle },
-  { href: "/admin/import-content", label: "Import", icon: BookOpen },
-  { href: "/admin/import-review", label: "Import Review", icon: ShieldCheck },
-  { href: "/admin/content-rights-audit", label: "Rights Audit", icon: ClipboardList },
-  { href: "/admin/content-audit", label: "Content Audit", icon: ClipboardList },
-  { href: "/admin/videos", label: "Videos", icon: Video },
 ];
+
+function isActive(pathname: string, href: string, exact?: boolean) {
+  if (exact) return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function AdminNav() {
   const pathname = usePathname();
@@ -44,14 +34,14 @@ export function AdminNav() {
           <LogOut className="h-5 w-5" />
         </button>
       </div>
-      <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3">
-        {links.map(({ href, label, icon: Icon }) => (
+      <div className="mx-auto flex max-w-6xl gap-2 px-4 pb-3">
+        {links.map(({ href, label, icon: Icon, exact }) => (
           <Link
             key={href}
             href={href}
             className={cn(
               "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap",
-              pathname === href || pathname.startsWith(href + "/")
+              isActive(pathname, href, exact)
                 ? "bg-indigo-600"
                 : "text-slate-300 hover:bg-slate-800",
             )}

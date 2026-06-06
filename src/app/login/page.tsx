@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { signIn, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
@@ -156,12 +155,6 @@ function LoginForm() {
         <Button type="submit" size="lg" className="w-full" disabled={loading || resendLoading}>
           {loading ? "Signing in..." : "Sign In"}
         </Button>
-
-        <Link href="/signup" className="block">
-          <Button type="button" variant="secondary" size="lg" className="w-full">
-            Sign up
-          </Button>
-        </Link>
       </form>
     </AuthShell>
   );

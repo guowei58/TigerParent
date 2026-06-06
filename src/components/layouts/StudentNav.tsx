@@ -17,7 +17,7 @@ const links = [
   { href: "/student", label: "Home", icon: Home },
   { href: "/student/concepts", label: "Practice by Topics", icon: Target },
   { href: "/student/leaderboard", label: "Board", icon: Trophy },
-  { href: "/student/for-parents", label: "Parents", icon: Users },
+  { href: "/student/for-parents", label: "Review Your Kid's Work", icon: Users },
   { href: "/student/settings", label: "Settings", icon: Settings },
 ];
 

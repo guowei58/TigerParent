@@ -1,11 +1,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/db";
 
-const KEEP_EMAILS = new Set([
-  "admin@tigerparent.local",
-  "studenta@tigerparent.local",
-  "studentb@tigerparent.local",
-]);
+const KEEP_EMAILS = new Set(["admin@tigerparent.local"]);
 
 const DEMO_FAMILY_ID = "demo-family";
 
