@@ -40,6 +40,7 @@ function xpFromLegacyAttempt(isCorrect: boolean): number {
 function xpFromPdfStatus(status: PdfProblemProgressStatus | null): number {
   if (status === "correct") return 15;
   if (status === "incorrect") return 15;
+  if (status === "submitted") return 10;
   return 0;
 }
 
@@ -51,6 +52,7 @@ function summarizePdfStatuses(statuses: (PdfProblemProgressStatus | null)[]) {
   for (const status of statuses) {
     if (!status) continue;
     if (status === "correct") correctCount++;
+    else if (status === "submitted") wrongOrSkippedCount++;
     else wrongOrSkippedCount++;
     xpEarned += xpFromPdfStatus(status);
   }

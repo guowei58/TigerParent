@@ -15,19 +15,20 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const conceptSlug = url.searchParams.get("conceptSlug");
-  if (!conceptSlug) {
-    return NextResponse.json({ error: "conceptSlug required" }, { status: 400 });
+  const conceptSlug = url.searchParams.get("conceptSlug") ?? undefined;
+  const passageId = url.searchParams.get("passageId") ?? undefined;
+  if (!conceptSlug && !passageId) {
+    return NextResponse.json({ error: "conceptSlug or passageId required" }, { status: 400 });
   }
   const gradeParam = url.searchParams.get("gradeLevel");
   const gradeLevel = gradeParam ? parseInt(gradeParam, 10) : undefined;
 
   try {
-    const items = await getSectionReview(
-      scope,
+    const items = await getSectionReview(scope, {
       conceptSlug,
-      Number.isFinite(gradeLevel) ? gradeLevel : undefined,
-    );
+      passageId,
+      gradeLevel: Number.isFinite(gradeLevel) ? gradeLevel : undefined,
+    });
     return NextResponse.json({ items });
   } catch (error) {
     console.error("[section-review] GET failed:", error);

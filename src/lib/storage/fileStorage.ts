@@ -1,23 +1,12 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { toDataRelativePath, publicPathFromData } from "@/lib/storage/dataPaths";
+
+export { toDataRelativePath, publicPathFromData };
 
 const DATA_ROOT = path.join(process.cwd(), "data");
 const DATA_ROOT_NORM = DATA_ROOT.replace(/\\/g, "/");
-
-/** Store paths relative to `data/` so URLs work across machines. */
-export function toDataRelativePath(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/");
-  const lower = normalized.toLowerCase();
-  const rootLower = DATA_ROOT_NORM.toLowerCase();
-  if (lower.startsWith(rootLower + "/")) {
-    return normalized.slice(rootLower.length + 1);
-  }
-  if (lower.startsWith("data/")) {
-    return normalized.slice(5);
-  }
-  return normalized;
-}
 
 /** Resolve a DB-stored path (relative or legacy absolute) to an on-disk file. */
 export function resolveDataPath(storedPath: string): string {
@@ -68,8 +57,4 @@ export function saveUploadedPdf(fileName: string, buffer: Buffer): { storedPath:
   const storedPath = path.join(dir, `${hash.slice(0, 16)}-${safe}`);
   fs.writeFileSync(storedPath, buffer);
   return { storedPath: storedPath.replace(/\\/g, "/"), hash };
-}
-
-export function publicPathFromData(relativePath: string): string {
-  return `/api/pdf-assets/${toDataRelativePath(relativePath)}`;
 }

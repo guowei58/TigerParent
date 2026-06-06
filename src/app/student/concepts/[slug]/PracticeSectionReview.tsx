@@ -11,16 +11,19 @@ const STATUS_LABEL: Record<PdfProblemProgressStatus, string> = {
   correct: "Correct first try",
   incorrect: "Wrong then fixed",
   skipped: "Skipped",
+  submitted: "Saved for parent review",
 };
 
 const STATUS_CLASS: Record<PdfProblemProgressStatus, string> = {
   correct: "bg-emerald-100 text-emerald-800 border-emerald-200",
   incorrect: "bg-rose-100 text-rose-800 border-rose-200",
   skipped: "bg-amber-100 text-amber-800 border-amber-200",
+  submitted: "bg-slate-100 text-slate-800 border-slate-200",
 };
 
 type Props = {
-  conceptSlug: string;
+  conceptSlug?: string;
+  passageId?: string;
   conceptName: string;
   gradeLevel?: number;
   onBackToSummary: () => void;
@@ -28,6 +31,7 @@ type Props = {
 
 export function PracticeSectionReview({
   conceptSlug,
+  passageId,
   conceptName,
   gradeLevel,
   onBackToSummary,
@@ -42,9 +46,10 @@ export function PracticeSectionReview({
     setError(null);
     const gradeQuery =
       gradeLevel != null ? `&gradeLevel=${encodeURIComponent(String(gradeLevel))}` : "";
-    fetch(
-      `/api/practice/section-review?conceptSlug=${encodeURIComponent(conceptSlug)}${gradeQuery}`,
-    )
+    const query = passageId
+      ? `passageId=${encodeURIComponent(passageId)}${gradeQuery}`
+      : `conceptSlug=${encodeURIComponent(conceptSlug ?? "")}${gradeQuery}`;
+    fetch(`/api/practice/section-review?${query}`)
       .then(async (r) => {
         if (!r.ok) throw new Error("Could not load your work for this section.");
         return r.json() as Promise<{ items?: SectionReviewItem[] }>;
@@ -58,7 +63,7 @@ export function PracticeSectionReview({
         setError(err instanceof Error ? err.message : "Could not load review.");
         setLoading(false);
       });
-  }, [conceptSlug, gradeLevel]);
+  }, [conceptSlug, passageId, gradeLevel]);
 
   if (loading) {
     return <p className="text-slate-500">Loading your work…</p>;
@@ -87,7 +92,7 @@ export function PracticeSectionReview({
   }
 
   const current = items[index]!;
-  const img = current.fullPageImageUrl ?? current.problemImageUrl;
+  const img = current.problemImageUrl ?? current.fullPageImageUrl;
 
   return (
     <div className="space-y-4">

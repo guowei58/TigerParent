@@ -5,15 +5,21 @@ import { isAdminSession } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db";
 import { AdminNav } from "@/components/layouts/AdminNav";
 import { buildApproveCheckInput, canApprovePdfProblem } from "@/lib/pdf/approveProblem";
-import { assetUrl, problemDisplayImagePath } from "@/lib/pdf/displayPaths";
+import { assetUrl, problemDisplayImagePath, elaQuestionDisplayImagePath } from "@/lib/pdf/displayPaths";
 import { PdfImportApproveAllButton } from "./PdfImportApproveAllButton";
-import { PdfProblemApproveButton } from "./PdfProblemApproveButton";
+import { PdfProblemApprovalButton } from "./PdfProblemApprovalButton";
+import { PdfProblemReexamineButton } from "./PdfProblemReexamineButton";
 import { PdfProblemDeleteButton } from "./PdfProblemDeleteButton";
 import { PdfImportProblemsTable } from "./PdfImportProblemsTable";
+import { PdfImportReexamineAllButton } from "./PdfImportReexamineAllButton";
+import { PdfImportMetadataForm } from "./PdfImportMetadataForm";
 import { IngestionProgressListener } from "./IngestionProgressBar";
 import { AdminProblemPreview } from "./AdminProblemPreview";
 import { FormattedExplanation } from "@/components/pdf/FormattedExplanation";
 import { RetryIngestionButton } from "./RetryIngestionButton";
+import { PdfPassagePanel } from "@/components/pdf/PdfPassagePanel";
+import { passageViewFromDb } from "@/lib/pdf/passageView";
+import { elaQuestionStem } from "@/lib/pdf/elaDisplay";
 
 const TERMINAL_INGESTION = new Set(["needs_review", "completed", "failed"]);
 
@@ -35,7 +41,12 @@ export default async function PdfImportDetailPage({
       ingestionJobs: { orderBy: { createdAt: "desc" }, take: 1 },
       problems: {
         orderBy: { problemNumber: "asc" },
-        include: { choices: true, solution: true, primaryConcept: true },
+        include: {
+          choices: { orderBy: { sortOrder: "asc" } },
+          solution: true,
+          primaryConcept: true,
+          passage: true,
+        },
       },
       answerKey: { orderBy: { problemNumber: "asc" } },
     },
@@ -66,11 +77,23 @@ export default async function PdfImportDetailPage({
             ← Back
           </Link>
           <h1 className="text-2xl font-bold mt-2">{doc.title}</h1>
+          <PdfImportMetadataForm
+            documentId={doc.id}
+            initialTitle={doc.title}
+            initialGradeLevel={doc.gradeLevel}
+          />
           <div className="flex flex-wrap items-center gap-3 mt-2">
             <p className="text-slate-600 text-sm">
               {doc.pageCount} pages · {doc.problems.length} problems · {doc.answerKey.length} answer
               key entries · {approved} approved · Status: {job?.status ?? doc.importStatus}
             </p>
+            <PdfImportReexamineAllButton
+              problems={doc.problems.map((p) => ({
+                id: p.id,
+                problemNumber: p.problemNumber,
+                approvedForStudentUse: p.approvedForStudentUse,
+              }))}
+            />
             <PdfImportApproveAllButton documentId={doc.id} pendingCount={approvablePending} />
           </div>
           {pendingApproval > approvablePending && (
@@ -82,7 +105,9 @@ export default async function PdfImportDetailPage({
           )}
           <p className="text-slate-500 text-xs mt-1">
             Layout:{" "}
-            {doc.ingestionLayout === "one_problem_per_page"
+            {doc.ingestionLayout === "ela_reading_passages"
+              ? "ELA reading passages (shared passage per question set)"
+              : doc.ingestionLayout === "one_problem_per_page"
               ? `one problem per page (pages 1–${Math.max(0, doc.pageCount - doc.answerKeyPageCount)} = problems, last ${doc.answerKeyPageCount} pages = answer key)`
               : "auto-detect from text"}
           </p>
@@ -102,12 +127,22 @@ export default async function PdfImportDetailPage({
               />
             </div>
           )}
+          {doc.ingestionLayout === "one_problem_per_page" &&
+            (doc.subject ?? "").toLowerCase().includes("english") && (
+              <p className="text-amber-800 text-sm mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                This English PDF was ingested with the math layout (one problem per page). Passages
+                and answer choices will not parse correctly. Click <strong>Retry ingestion</strong>{" "}
+                below — English PDFs now auto-switch to the ELA reading layout.
+              </p>
+            )}
           {job?.errorMessage && !ingestionInProgress && (
             <p className="text-red-600 text-sm mt-2">Error: {job.errorMessage}</p>
           )}
           {(job?.status === "rendering_pages" ||
             job?.status === "failed" ||
-            doc.problems.length === 0) && (
+            doc.problems.length === 0 ||
+            (doc.ingestionLayout === "one_problem_per_page" &&
+              (doc.subject ?? "").toLowerCase().includes("english"))) && (
             <div className="mt-3">
               <RetryIngestionButton documentId={doc.id} />
             </div>
@@ -130,7 +165,13 @@ export default async function PdfImportDetailPage({
         <div className="space-y-6">
           {doc.problems.map((p) => {
             const key = doc.answerKey.find((k) => k.problemNumber === p.problemNumber);
-            const img = assetUrl(problemDisplayImagePath(p));
+            const img = assetUrl(problemDisplayImagePath(p), p.updatedAt.getTime());
+            const isEla = Boolean(p.passageId || p.passage);
+            const passageView = p.passage ? passageViewFromDb(p.passage) : null;
+            const questionStem = elaQuestionStem(p.cleanedText, p.choices);
+            const elaQuestionImage = isEla
+              ? assetUrl(elaQuestionDisplayImagePath(p), p.updatedAt.getTime())
+              : null;
             return (
               <div key={p.id} className="bg-white rounded-2xl border p-4 grid md:grid-cols-2 gap-4">
                 <div>
@@ -140,15 +181,33 @@ export default async function PdfImportDetailPage({
                     </p>
                     <PdfProblemDeleteButton problemId={p.id} problemNumber={p.problemNumber} />
                   </div>
-                  {img ? (
+                  {isEla && passageView ? (
+                    <PdfPassagePanel passage={passageView} variant="student" />
+                  ) : img ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={img} alt={`Problem ${p.problemNumber}`} className="max-w-full border rounded" />
                   ) : (
                     <p className="text-red-600 text-sm">No image</p>
                   )}
-                  <AdminProblemPreview questionType={p.questionType} choices={p.choices} />
                 </div>
                 <div className="text-sm space-y-2">
+                  {isEla && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                        Question
+                      </p>
+                      {elaQuestionImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={elaQuestionImage}
+                          alt={`Problem ${p.problemNumber}`}
+                          className="block h-auto w-full max-h-[min(70vh,640px)] object-contain object-top rounded-lg border border-slate-200 bg-white"
+                        />
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap text-slate-900">{questionStem}</p>
+                      )}
+                    </div>
+                  )}
                   <p>
                     <strong>Concept:</strong> {p.primaryConcept?.name ?? "—"} (
                     {p.conceptConfidence?.toFixed(2) ?? "?"})
@@ -169,12 +228,18 @@ export default async function PdfImportDetailPage({
                     </div>
                   )}
                   <ul className="text-xs">
-                    {(p.parseWarnings as string[] | null)?.map((w) => (
-                      <li key={w} className="text-amber-700">
+                    {(p.parseWarnings as string[] | null)?.map((w, i) => (
+                      <li key={`${i}-${w}`} className="text-amber-700">
                         {w}
                       </li>
                     ))}
                   </ul>
+                  <AdminProblemPreview
+                    questionType={p.questionType}
+                    choices={p.choices}
+                    showChoiceText={false}
+                    orientation="grid"
+                  />
                   <div className="flex flex-wrap items-center gap-2 pt-2">
                     <Link
                       href={`/admin/problems/${p.id}/review`}
@@ -182,10 +247,8 @@ export default async function PdfImportDetailPage({
                     >
                       Full review
                     </Link>
-                    {!p.approvedForStudentUse && <PdfProblemApproveButton problemId={p.id} />}
-                    {p.approvedForStudentUse && (
-                      <span className="text-emerald-600 text-sm font-medium">Approved</span>
-                    )}
+                    <PdfProblemReexamineButton problemId={p.id} />
+                    <PdfProblemApprovalButton problemId={p.id} approved={p.approvedForStudentUse} />
                   </div>
                 </div>
               </div>

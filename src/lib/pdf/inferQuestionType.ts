@@ -47,14 +47,8 @@ export function inferQuestionType(params: {
   const hasStructuredChoices = choiceCount >= 2;
 
   if (isMcqAnswerKeyLetter(correctChoiceLabel)) {
-    if (hasChoicesInText || hasStructuredChoices) {
-      return requiresImage ? "visual_multiple_choice" : "multiple_choice";
-    }
-    const len = params.cleanedTextLength ?? rawText.replace(/\s+/g, " ").trim().length;
-    if (len === 0) {
-      return requiresImage ? "visual_multiple_choice" : "multiple_choice";
-    }
-    return "open_response";
+    // Letter answer keys almost always mean MCQ, even when PDF text extraction missed choices.
+    return requiresImage ? "visual_multiple_choice" : "multiple_choice";
   }
 
   if (requiresImage && hasChoicesInText) return "visual_multiple_choice";

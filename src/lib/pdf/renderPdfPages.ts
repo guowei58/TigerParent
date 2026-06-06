@@ -3,7 +3,7 @@ import path from "path";
 import sharp from "sharp";
 import { pdf } from "pdf-to-img";
 import { ensureDir, resolveDataPath, toDataRelativePath } from "@/lib/storage/fileStorage";
-import { setupPdfJs } from "./setupPdfJs";
+import { setupPdfJs, getPdfJsDocumentInitParams } from "./setupPdfJs";
 
 export type RenderedPage = {
   pageNumber: number;
@@ -20,7 +20,10 @@ export async function renderPdfPages(
 ): Promise<RenderedPage[]> {
   await setupPdfJs();
   ensureDir(outDir);
-  const doc = await pdf(pdfFilePath, { scale });
+  const doc = await pdf(pdfFilePath, {
+    scale,
+    docInitParams: getPdfJsDocumentInitParams(),
+  });
   const pages: RenderedPage[] = [];
   let pageNumber = 1;
 

@@ -11,6 +11,8 @@ export type ExplanationInput = {
   conceptName?: string;
   /** DB path to problem or full-page crop — enables vision explanations. */
   problemImagePath?: string | null;
+  /** Reading passage text for ELA items linked to a shared passage. */
+  passageText?: string | null;
 };
 
 export type ExplanationOutput = {

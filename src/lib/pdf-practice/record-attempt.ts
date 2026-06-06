@@ -27,12 +27,23 @@ export type RecordPdfAttemptResult =
 export async function recordPdfProblemAttempt(
   input: PdfAttemptCreateInput,
 ): Promise<RecordPdfAttemptResult> {
+  const problem = await prisma.pdfPracticeProblem.findUnique({
+    where: { id: input.problemId },
+    select: { subject: true, passageId: true },
+  });
+  const subject = (problem?.subject ?? "").toLowerCase();
+  const isElaReading =
+    Boolean(problem?.passageId) ||
+    subject.includes("english") ||
+    subject.includes("ela");
+  const requiresScratchpad = PDF_PRACTICE_REQUIRES_SCRATCHPAD && !isElaReading;
+
   const { strokes, quality } = parsePdfAttemptStrokes(
     input.strokes,
     input.drawingSeconds,
   );
 
-  if (PDF_PRACTICE_REQUIRES_SCRATCHPAD && !quality.showedWork) {
+  if (requiresScratchpad && !quality.showedWork) {
     return {
       ok: false,
       error: "Show your work on the scratchpad before submitting.",

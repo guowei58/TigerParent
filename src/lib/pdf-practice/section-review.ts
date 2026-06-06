@@ -46,10 +46,14 @@ function scopeWhere(scope: ProgressScope, problemIds: string[]) {
 
 export async function getSectionReview(
   scope: ProgressScope,
-  conceptSlug: string,
-  gradeLevel?: number,
+  options: { conceptSlug?: string; passageId?: string; gradeLevel?: number },
 ): Promise<SectionReviewItem[]> {
-  const problems = await selectApprovedPdfProblems({ conceptSlug, gradeLevel, limit: 500 });
+  const problems = await selectApprovedPdfProblems({
+    conceptSlug: options.conceptSlug,
+    passageId: options.passageId,
+    gradeLevel: options.gradeLevel,
+    limit: 500,
+  });
   if (problems.length === 0) return [];
 
   const problemIds = problems.map((p) => p.id);

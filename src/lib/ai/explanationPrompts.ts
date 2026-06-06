@@ -42,7 +42,14 @@ estimatedTimeSeconds (number), confidence (0-1), warnings (string array).`;
 }
 
 export function buildProblemBlock(input: ExplanationInput): string {
-  const lines = [input.cleanedText.trim()];
+  const lines: string[] = [];
+  if (input.passageText?.trim()) {
+    lines.push("Reading passage:");
+    lines.push(input.passageText.trim().slice(0, 6000));
+    lines.push("");
+    lines.push("Question:");
+  }
+  lines.push(input.cleanedText.trim());
   if (input.choices.length > 0) {
     lines.push("");
     lines.push("Answer choices:");

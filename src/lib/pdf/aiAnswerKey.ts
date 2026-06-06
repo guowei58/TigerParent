@@ -119,6 +119,9 @@ export async function ensureAiAnswerKeyForProblem(problem: {
   gradeLevel: number | null;
   subject: string | null;
   subtopic: string | null;
+  problemImagePath?: string | null;
+  fullPageImagePath?: string | null;
+  passageText?: string | null;
   choices: { label: string; text: string | null }[];
   key: {
     id: string;
@@ -133,6 +136,7 @@ export async function ensureAiAnswerKeyForProblem(problem: {
   }
 
   const trusted = trustedAnswerKeyForAi(problem.key, true);
+  const { problemDisplayImagePath } = await import("@/lib/pdf/displayPaths");
   const expl = await generateProblemExplanationWithAi({
     cleanedText: problem.rawText ?? problem.cleanedText ?? "",
     choices: problem.choices,
@@ -141,6 +145,8 @@ export async function ensureAiAnswerKeyForProblem(problem: {
     gradeLevel: problem.gradeLevel ?? 5,
     subject: problem.subject ?? "math",
     conceptName: problem.subtopic ?? undefined,
+    problemImagePath: problemDisplayImagePath(problem),
+    passageText: problem.passageText,
   });
 
   const answerText = (expl.correctAnswerText ?? "").trim();

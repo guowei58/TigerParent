@@ -10,9 +10,18 @@ import {
   detectProblemsOnePerPage,
   splitAnswerKeySection,
 } from "./detectProblems";
+import {
+  detectElaReadingProblems,
+  type ElaDetectedRegion,
+} from "./detectElaReading";
+import { detectElaReadingScannedFallback } from "./detectElaReadingScannedFallback";
+import {
+  assessElaTextExtraction,
+  shouldUseElaScannedFallback,
+} from "./elaTextExtractionQuality";
+import { parseAnswerKey } from "./parseAnswerKey";
 import { parseAnswerChoices } from "./parseAnswerChoices";
 import { inferQuestionType } from "./inferQuestionType";
-import { parseAnswerKey } from "./parseAnswerKey";
 import { cropProblemImages } from "./cropProblemImages";
 import { cleanProblemText } from "@/lib/ai/cleanProblemText";
 import { generateProblemExplanationWithAi } from "@/lib/ai/generateProblemExplanation";
@@ -23,6 +32,7 @@ import {
   trustedAnswerKeyForAi,
 } from "@/lib/pdf/aiAnswerKey";
 import { classifyProblemConcept } from "@/lib/ai/classifyProblemConcept";
+import { classifyElaConceptSlug } from "@/lib/concepts/elaConceptTaxonomy";
 import { seedPracticeConcepts } from "@/lib/concepts/seedConcepts";
 import {
   ensureDir,
@@ -87,13 +97,16 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
 
   try {
     await seedPracticeConcepts();
+    const docSubject = doc.subject ?? "math";
     let concepts = await prisma.practiceConcept.findMany({
-      where: { subject: doc.subject ?? "math", gradeLevel: doc.gradeLevel ?? undefined },
+      where:
+        docSubject === "english"
+          ? { subject: "english" }
+          : { subject: docSubject, gradeLevel: doc.gradeLevel ?? undefined },
     });
-    // Taxonomy is grade-5 today; still classify lower-grade PDFs into those topics.
     if (concepts.length === 0) {
       concepts = await prisma.practiceConcept.findMany({
-        where: { subject: doc.subject ?? "math" },
+        where: { subject: docSubject },
         orderBy: { sortOrder: "asc" },
       });
     }
@@ -187,13 +200,91 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
 
     const layout = doc.ingestionLayout ?? "one_problem_per_page";
     const answerKeyPageCount = doc.answerKeyPageCount ?? 1;
+    const isEnglishDoc = (doc.subject ?? "").toLowerCase().includes("english");
 
-    let regions;
+    /** ELA tests must use passage layout — one-per-page treats story pages as problems. */
+    let effectiveLayout = layout;
+    if (isEnglishDoc && layout === "one_problem_per_page") {
+      effectiveLayout = "ela_reading_passages";
+      await prisma.pdfSourceDocument.update({
+        where: { id: sourceDocumentId },
+        data: { ingestionLayout: "ela_reading_passages" },
+      });
+      await updateJob(jobId, {
+        ...log(
+          "detecting_problem_regions",
+          "English PDF — switched layout from one_problem_per_page to ela_reading_passages",
+        ),
+      });
+    }
+
+    let regions: ElaDetectedRegion[];
     let answerKeySection: string;
+    let elaPassages: Awaited<ReturnType<typeof detectElaReadingProblems>>["passages"] = [];
 
-    if (layout === "one_problem_per_page") {
+    if (effectiveLayout === "ela_reading_passages") {
+      const detected = detectElaReadingProblems(pagesForDetect, answerKeyPageCount);
+      regions = detected.regions as ElaDetectedRegion[];
+      answerKeySection = detected.answerKeySection;
+      elaPassages = detected.passages;
+
+      const textQuality = assessElaTextExtraction(pagesForDetect, answerKeyPageCount);
+      const answerKeyCount = parseAnswerKey(answerKeySection).length;
+      if (
+        shouldUseElaScannedFallback(
+          textQuality,
+          detected.regions.length,
+          answerKeyCount,
+        )
+      ) {
+        const imagePaths = new Map<number, string>();
+        for (const [pageNum, info] of pageImageMap) {
+          imagePaths.set(pageNum, info.path);
+        }
+        try {
+          const fallback = await detectElaReadingScannedFallback(
+            pagesForDetect,
+            answerKeyPageCount,
+            imagePaths,
+          );
+          if (fallback.regions.length > detected.regions.length) {
+            regions = fallback.regions as ElaDetectedRegion[];
+            elaPassages = fallback.passages;
+            answerKeySection = fallback.answerKeySection || answerKeySection;
+            await updateJob(jobId, {
+              ...log(
+                "detecting_problem_regions",
+                `ela scanned fallback (${fallback.fallbackReason}): ${fallback.passages.length} passages, ${fallback.regions.length} questions`,
+              ),
+            });
+          } else {
+            await updateJob(jobId, {
+              ...log(
+                "detecting_problem_regions",
+                `ela scanned fallback skipped — text path kept (${detected.regions.length} vs ${fallback.regions.length} questions)`,
+              ),
+            });
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await updateJob(jobId, {
+            ...log(
+              "detecting_problem_regions",
+              `ela scanned fallback failed — using text detection: ${msg}`,
+            ),
+          });
+        }
+      }
+
+      await updateJob(jobId, {
+        ...log(
+          "detecting_problem_regions",
+          `ela: ${elaPassages.length} passages, ${regions.length} questions`,
+        ),
+      });
+    } else if (effectiveLayout === "one_problem_per_page") {
       const detected = detectProblemsOnePerPage(pagesForDetect, answerKeyPageCount);
-      regions = detected.regions;
+      regions = detected.regions as ElaDetectedRegion[];
       answerKeySection = detected.answerKeySection;
       await updateJob(jobId, {
         ...log(
@@ -202,7 +293,7 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
         ),
       });
     } else {
-      regions = detectProblemsFromPages(pagesForDetect);
+      regions = detectProblemsFromPages(pagesForDetect) as ElaDetectedRegion[];
       answerKeySection = splitAnswerKeySection(
         pagesForDetect.map((p) => p.text).join("\n"),
       ).answerKeySection;
@@ -215,6 +306,27 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
         problemNumber: { notIn: detectedNumbers.length > 0 ? detectedNumbers : [-1] },
       },
     });
+
+    await prisma.pdfReadingPassage.deleteMany({ where: { sourceDocumentId } });
+    const passageIdByNumber = new Map<number, string>();
+    for (const passage of elaPassages) {
+      const pageImagePaths = passage.pageNumbers
+        .map((n) => pageImageMap.get(n)?.path)
+        .filter((p): p is string => Boolean(p));
+      const row = await prisma.pdfReadingPassage.create({
+        data: {
+          sourceDocumentId,
+          passageNumber: passage.passageNumber,
+          title: passage.title,
+          promptText: passage.promptText,
+          bodyText: passage.bodyText,
+          pageStart: passage.pageStart,
+          pageEnd: passage.pageEnd,
+          pageImagePaths: pageImagePaths.length ? pageImagePaths : undefined,
+        },
+      });
+      passageIdByNumber.set(passage.passageNumber, row.id);
+    }
 
     await updateJob(jobId, {
       status: "cropping_problem_images",
@@ -242,9 +354,17 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
       }
       const region = regions[i]!;
       const crop = crops.find((c) => c.problemNumber === region.problemNumber);
-      const cleaned = sanitizePdfText(cleanProblemText(region.rawText));
       const rawText = sanitizePdfText(region.rawText);
-      const choices = parseAnswerChoices(region.rawText);
+      const cleaned = sanitizePdfText(
+        region.cleanedText?.trim() ? region.cleanedText : cleanProblemText(region.rawText),
+      );
+      const choices =
+        region.elaChoices && region.elaChoices.length > 0
+          ? region.elaChoices
+          : parseAnswerChoices(region.rawText);
+      const passageId = region.passageNumber
+        ? passageIdByNumber.get(region.passageNumber)
+        : undefined;
 
       await prisma.pdfPracticeProblem.upsert({
         where: {
@@ -257,6 +377,7 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
           sourceDocumentId,
           problemNumber: region.problemNumber,
           sourcePageStart: region.pageNumber,
+          passageId,
           rawText,
           cleanedText: cleaned,
           questionType: region.questionType as PdfQuestionType,
@@ -275,11 +396,19 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
           parseWarnings: [...region.parseWarnings, ...(crop?.warnings ?? [])],
         },
         update: {
+          sourcePageStart: region.pageNumber,
+          passageId,
           rawText,
           cleanedText: cleaned,
           questionType: region.questionType as PdfQuestionType,
+          requiresImage: region.requiresImage,
+          studentDisplayMode: crop?.studentDisplayMode ?? "full_page_with_problem_number",
           problemImagePath: crop?.problemImagePath,
           fullPageImagePath: crop?.fullPageImagePath,
+          cropX: crop?.cropX,
+          cropY: crop?.cropY,
+          cropWidth: crop?.cropWidth,
+          cropHeight: crop?.cropHeight,
           extractionConfidence: region.confidence,
           parseWarnings: [...region.parseWarnings, ...(crop?.warnings ?? [])],
         },
@@ -413,11 +542,30 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
           currentStep: `classifying_concepts (${i + 1}/${problems.length})`,
         });
       }
-      const classification = classifyProblemConcept(
-        p.cleanedText ?? "",
-        concepts,
-        p.gradeLevel ?? doc.gradeLevel ?? 5,
-      );
+      const classification =
+        docSubject === "english"
+          ? (() => {
+              const slug = classifyElaConceptSlug(p.cleanedText ?? "");
+              const concept = concepts.find((c) => c.slug === slug);
+              return {
+                primaryConceptSlug: slug,
+                primaryConceptName: concept?.name ?? "Main Idea & Theme",
+                domain: concept?.domain ?? "Reading Literature",
+                secondaryConceptSlugs: [],
+                topic: concept?.domain ?? "Reading Literature",
+                subtopic: concept?.name ?? "Main Idea & Theme",
+                standardGuess: null,
+                difficultyGuess: "medium",
+                classificationConfidence: 0.75,
+                reasoning: "ELA keyword rules",
+                warnings: [],
+              };
+            })()
+          : classifyProblemConcept(
+              p.cleanedText ?? "",
+              concepts,
+              p.gradeLevel ?? doc.gradeLevel ?? 5,
+            );
       const concept = concepts.find((c) => c.slug === classification.primaryConceptSlug);
       if (concept) {
         await prisma.pdfPracticeProblem.update({
@@ -477,6 +625,10 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
       });
       const choiceRows = choices.map((c) => ({ label: c.label, text: c.text }));
       const needsAi = needsAiDerivedAnswerKey(p.questionType, choiceRows, key);
+      const passageRow = p.passageId
+        ? await prisma.pdfReadingPassage.findUnique({ where: { id: p.passageId } })
+        : null;
+      const passageText = passageRow?.bodyText ?? null;
 
       if (needsAi) {
         try {
@@ -490,6 +642,9 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
             gradeLevel: p.gradeLevel ?? doc.gradeLevel ?? 5,
             subject: p.subject ?? doc.subject ?? "math",
             subtopic: p.subtopic,
+            problemImagePath: p.problemImagePath,
+            fullPageImagePath: p.fullPageImagePath,
+            passageText,
             choices: choiceRows,
             key: key
               ? {
@@ -516,6 +671,7 @@ export async function runPdfIngestion(sourceDocumentId: string, jobId: string) {
           subject: p.subject ?? doc.subject ?? "math",
           conceptName: p.subtopic ?? undefined,
           problemImagePath: problemDisplayImagePath(p),
+          passageText,
         });
 
         const genStatus =

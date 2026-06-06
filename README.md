@@ -83,12 +83,68 @@ Password for all demo accounts: `demo1234`
 | Student A (entering 4th grade) | studenta@tigerparent.local |
 | Student B (entering 6th grade) | studentb@tigerparent.local |
 
-## Deploy to Render
+## Deploy to Render (tigerparent.study)
 
-1. Push repo to GitHub
-2. Create a new **Blueprint** on Render and point to `render.yaml`
-3. Set `NEXTAUTH_URL` to your Render web service URL (e.g. `https://tigerparent.onrender.com`)
-4. Render provisions PostgreSQL and runs migrations on deploy
+The app code deploys automatically from GitHub. The database is on Render Postgres. **Practice question images are stored separately** — they live in `data/pdf-crops/` on your machine and must be uploaded to Cloudflare R2 for production.
+
+### 1. Code deploy (Render)
+
+1. Push the repo to GitHub
+2. In [Render Dashboard](https://dashboard.render.com), connect the repo (or use **Blueprint** → `render.yaml`)
+3. Set these environment variables on the **tigerparent** web service:
+
+| Variable | Value |
+|----------|-------|
+| `NEXTAUTH_URL` | `https://tigerparent.study` |
+| `AUTH_SECRET` | A long random string (keep stable — changing it logs everyone out) |
+| `RESEND_API_KEY` | From [resend.com](https://resend.com) |
+| `EMAIL_FROM` | `TigerParent <noreply@tigerparent.study>` |
+| `PDF_ASSETS_PUBLIC_BASE_URL` | Your R2 public URL (step 2 below) |
+| `ADMIN_EMAILS` | Your admin email(s), comma-separated |
+
+Render runs `prisma migrate deploy` and `npm run build` on each deploy.
+
+### 2. Practice images (Cloudflare R2 — required for PDF practice)
+
+Without this step, topics load on tigerparent.study but question images show as broken icons.
+
+1. **Cloudflare Dashboard** → R2 → Create bucket (e.g. `tigerparent-assets`)
+2. **Settings → Public access** → Allow public access → copy the `https://pub-….r2.dev` URL  
+   (Optional: add custom domain like `assets.tigerparent.study`)
+3. **R2 → Manage R2 API Tokens** → Create token with Object Read & Write on that bucket
+4. Add to your local `.env`:
+
+```env
+R2_ACCOUNT_ID=your_cloudflare_account_id
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=tigerparent-assets
+PDF_ASSETS_PUBLIC_BASE_URL=https://pub-xxxxxxxx.r2.dev
+```
+
+5. Upload images from your machine (~300 MB for crops + pages):
+
+```bash
+npm run assets:upload
+```
+
+6. Set `PDF_ASSETS_PUBLIC_BASE_URL` on Render to the same public URL → **Manual Deploy**
+
+Re-run `npm run assets:upload` after importing new PDFs locally.
+
+### 3. Student accounts
+
+Kids sign in at `https://tigerparent.study/login` with accounts you create (email + password). Demo accounts from seed (`studenta@tigerparent.local` / `demo1234`) only exist if you ran seed against production DB.
+
+To add students in production, use the admin portal or run seed/setup against the Render database.
+
+### 4. Verify production
+
+Open a practice topic and confirm a question image loads. Or test directly:
+
+`https://tigerparent.study/api/pdf-assets/pdf-crops/.../problem-006.png`
+
+(with a real path from your DB — should return PNG, not 404)
 
 ## Portals
 

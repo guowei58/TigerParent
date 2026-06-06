@@ -15,6 +15,8 @@ type Props = {
   questionType: string;
   choices: { label: string; text?: string | null }[];
   mode?: "interactive" | "preview";
+  /** Show full choice text (ELA) instead of letter-only buttons. */
+  showChoiceText?: boolean;
   /** horizontal = wrap row; vertical = stack; grid = 2×2 / 4-across for bottom bar */
   orientation?: "horizontal" | "vertical" | "grid";
   /** When true, choices fade in with a short stagger (after the problem image loads). */
@@ -31,6 +33,7 @@ export function ProblemAnswerInput({
   mode = "interactive",
   orientation = "horizontal",
   revealed = true,
+  showChoiceText = false,
   selected,
   onSelect,
   freeResponse = "",
@@ -41,6 +44,43 @@ export function ProblemAnswerInput({
   const labels = mcqChoiceLabels(choices);
 
   if (mcq) {
+    if (showChoiceText && choices.some((c) => c.text?.trim())) {
+      return (
+        <div className="flex flex-col gap-2">
+          {choices.map((choice, index) => {
+            const label = choice.label.toUpperCase();
+            return (
+              <button
+                key={label}
+                type="button"
+                disabled={!interactive}
+                onClick={() => onSelect?.(label)}
+                style={
+                  revealed && interactive
+                    ? { animationDelay: `${120 + index * 70}ms` }
+                    : undefined
+                }
+                className={`rounded-xl px-4 py-3 border text-left transition-colors duration-200 ${
+                  selected === label
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "bg-white border-slate-200 text-slate-800"
+                } ${
+                  !interactive
+                    ? "opacity-80 cursor-default"
+                    : revealed
+                      ? "pdf-choice-button hover:border-indigo-300"
+                      : "opacity-0 pointer-events-none"
+                }`}
+              >
+                <span className="font-semibold mr-2">{label}.</span>
+                <span className="text-sm">{choice.text}</span>
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
     const containerClass =
       orientation === "vertical"
         ? "flex flex-col gap-2"

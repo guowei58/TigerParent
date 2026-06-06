@@ -1466,6 +1466,7 @@ enum PdfClassificationMethod {
 enum PdfIngestionLayout {
   one_problem_per_page
   auto_detect
+  ela_reading_passages
 }
 
 model PdfSourceDocument {
@@ -1492,6 +1493,7 @@ model PdfSourceDocument {
   createdByAdmin User?            @relation("PdfCreatedByAdmin", fields: [createdByAdminId], references: [id], onDelete: SetNull)
   ingestionJobs  PdfIngestionJob[]
   pages          PdfPage[]
+  passages       PdfReadingPassage[]
   problems       PdfPracticeProblem[]
   answerKey      PdfAnswerKeyEntry[]
 
@@ -1535,6 +1537,26 @@ model PdfPage {
   sourceDocument PdfSourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
 
   @@unique([sourceDocumentId, pageNumber])
+}
+
+model PdfReadingPassage {
+  id               String   @id @default(cuid())
+  sourceDocumentId String
+  passageNumber    Int
+  title            String?
+  promptText       String?
+  bodyText         String?
+  pageStart        Int
+  pageEnd          Int
+  pageImagePaths   Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  sourceDocument PdfSourceDocument  @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  problems       PdfPracticeProblem[]
+
+  @@unique([sourceDocumentId, passageNumber])
+  @@index([sourceDocumentId])
 }
 
 model PracticeConcept {
@@ -1593,10 +1615,12 @@ model PdfPracticeProblem {
   parseWarnings          Json?
   contentHash            String?
   duplicateGroupId       String?
+  passageId              String?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 
   sourceDocument PdfSourceDocument   @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  passage        PdfReadingPassage?    @relation(fields: [passageId], references: [id], onDelete: SetNull)
   primaryConcept PracticeConcept?    @relation("PrimaryConcept", fields: [primaryConceptId], references: [id], onDelete: SetNull)
   choices        PdfAnswerChoice[]
   solution       PdfProblemSolution?
@@ -1606,6 +1630,7 @@ model PdfPracticeProblem {
   @@unique([sourceDocumentId, problemNumber])
   @@index([approvedForStudentUse, primaryConceptId])
   @@index([reviewStatus])
+  @@index([passageId])
 }
 
 model PdfAnswerChoice {

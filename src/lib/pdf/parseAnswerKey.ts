@@ -29,6 +29,32 @@ const ENTRY_RE =
 
 const STRUCTURED_ANSWER_LINE_RE = /\d{1,3}\.\s*Answer:\s*/i;
 
+/** NY ELA releases list several item numbers, then several Answer: lines in one row. */
+const NY_ELA_GRID_HINT = /\d{1,3}\.\s+\d{1,3}\.\s*Answer:/i;
+const NY_ELA_GRID_ROW_RE =
+  /((?:\d{1,3}\.\s*)+)(Answer:\s*(?:[A-D]|n\/a)(?:\s+Answer:\s*(?:[A-D]|n\/a))*)/gi;
+
+function parseNyElaGridAnswerKey(answerKeySection: string): ParsedAnswerKeyEntry[] {
+  if (!NY_ELA_GRID_HINT.test(answerKeySection)) return [];
+
+  const entries: ParsedAnswerKeyEntry[] = [];
+  const seen = new Set<number>();
+  const normalized = answerKeySection.replace(/\r\n/g, " ");
+  const rowRe = new RegExp(NY_ELA_GRID_ROW_RE.source, "gi");
+
+  let m: RegExpExecArray | null;
+  while ((m = rowRe.exec(normalized)) !== null) {
+    const numbers = [...m[1]!.matchAll(/(\d{1,3})\./g)].map((x) => parseInt(x[1]!, 10));
+    const answers = [...m[2]!.matchAll(/Answer:\s*([A-D]|n\/a)/gi)].map((x) => x[1]!);
+    const pairs = Math.min(numbers.length, answers.length);
+    for (let i = 0; i < pairs; i++) {
+      pushEntry(entries, seen, numbers[i]!, answers[i]!);
+    }
+  }
+
+  return entries;
+}
+
 function pushEntry(
   entries: ParsedAnswerKeyEntry[],
   seen: Set<number>,
@@ -87,10 +113,16 @@ function pushEntry(
 }
 
 export function parseAnswerKey(answerKeySection: string): ParsedAnswerKeyEntry[] {
+  const normalized = answerKeySection.replace(/\r\n/g, "\n");
+
+  const gridEntries = parseNyElaGridAnswerKey(normalized);
+  if (gridEntries.length > 0) {
+    return gridEntries.sort((a, b) => a.problemNumber - b.problemNumber);
+  }
+
   const entries: ParsedAnswerKeyEntry[] = [];
   const seen = new Set<number>();
 
-  const normalized = answerKeySection.replace(/\r\n/g, "\n");
   const structuredPatterns = [INLINE_MCQ_RE, INLINE_TEXT_ANSWER_RE, INLINE_NA_RE, STACKED_ANSWER_RE];
   const patterns = STRUCTURED_ANSWER_LINE_RE.test(normalized)
     ? structuredPatterns

@@ -8,7 +8,7 @@ export function portalPath(role: AppUserRole | string): string {
     case "STUDENT":
       return "/student";
     default:
-      return "/login?notice=parent-portal-removed";
+      return "/login";
   }
 }
 

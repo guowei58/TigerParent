@@ -1,23 +1,32 @@
-/** correct = first try right; incorrect = wrong at least once before getting it right; skipped = skipped */
-export type PdfProblemProgressStatus = "correct" | "incorrect" | "skipped";
+/** correct = first try right; incorrect = wrong at least once before getting it right; skipped = skipped; submitted = parent-graded open response */
+export type PdfProblemProgressStatus = "correct" | "incorrect" | "skipped" | "submitted";
 
 export type PdfPracticeProgress = {
   byProblemId: Record<string, PdfProblemProgressStatus>;
   correctCount: number;
   incorrectCount: number;
   skippedCount: number;
+  submittedCount: number;
   resumeIndex: number;
 };
 
 export function resolveProblemProgressFromAttempts(
-  attempts: { isCorrect: boolean | null; skipped: boolean }[],
+  attempts: {
+    isCorrect: boolean | null;
+    skipped: boolean;
+    freeResponseText?: string | null;
+  }[],
 ): PdfProblemProgressStatus | null {
   if (attempts.some((a) => a.skipped)) return "skipped";
 
   const answered = attempts.filter((a) => !a.skipped);
   const hadWrong = answered.some((a) => a.isCorrect === false);
   const hadCorrect = answered.some((a) => a.isCorrect === true);
+  const parentSubmitted = answered.some(
+    (a) => a.isCorrect === null && Boolean(a.freeResponseText?.trim()),
+  );
 
+  if (parentSubmitted && !hadCorrect && !hadWrong) return "submitted";
   if (hadWrong && hadCorrect) return "incorrect";
   if (hadCorrect) return "correct";
   return null;
@@ -82,6 +91,7 @@ export function countProgressStatuses(
     correct: values.filter((v) => v === "correct").length,
     incorrect: values.filter((v) => v === "incorrect").length,
     skipped: values.filter((v) => v === "skipped").length,
+    submitted: values.filter((v) => v === "submitted").length,
     done: values.length,
   };
 }
@@ -109,6 +119,7 @@ export function buildPdfPracticeProgress(
   let correctCount = 0;
   let incorrectCount = 0;
   let skippedCount = 0;
+  let submittedCount = 0;
 
   for (const id of problemIds) {
     const status = progressMap.get(id);
@@ -116,7 +127,8 @@ export function buildPdfPracticeProgress(
       byProblemId[id] = status;
       if (status === "correct") correctCount++;
       else if (status === "incorrect") incorrectCount++;
-      else skippedCount++;
+      else if (status === "skipped") skippedCount++;
+      else submittedCount++;
     }
   }
 
@@ -131,6 +143,7 @@ export function buildPdfPracticeProgress(
     correctCount,
     incorrectCount,
     skippedCount,
+    submittedCount,
     resumeIndex,
   };
 }

@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/db";
 import { allConceptSeeds } from "./mathConceptTaxonomy";
+import { ELA_READING_CONCEPTS } from "./elaConceptTaxonomy";
 
 export async function seedPracticeConcepts() {
-  const seeds = allConceptSeeds();
+  const seeds = [...allConceptSeeds(), ...ELA_READING_CONCEPTS];
   let count = 0;
   for (const s of seeds) {
     await prisma.practiceConcept.upsert({

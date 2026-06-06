@@ -7,6 +7,8 @@ import {
 } from "@/lib/pdf-practice/progress";
 import { recordPdfProblemAttempt } from "@/lib/pdf-practice/record-attempt";
 import { pickTigerParentRoast, type RoastUsage } from "@/lib/tiger-parent-roasts";
+import { isParentGradedElaResponse } from "@/lib/pdf/elaDisplay";
+import { openResponseReveal, problemExplanationText } from "@/lib/pdf/problemExplanation";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -40,6 +42,51 @@ export async function POST(request: Request) {
 
   if (!problem?.approvedForStudentUse) {
     return NextResponse.json({ error: "Problem not available" }, { status: 404 });
+  }
+
+  const parentGraded =
+    isParentGradedElaResponse(problem) && Boolean(freeResponseText?.trim());
+
+  if (parentGraded) {
+    const recorded = await recordPdfProblemAttempt({
+      problemId,
+      userId: session.user.id,
+      studentProfileId: session.user.studentProfileId ?? undefined,
+      freeResponseText: freeResponseText!.trim(),
+      isCorrect: null,
+      timeSpentSeconds: timeSpentSeconds ?? null,
+      strokes,
+      drawingSeconds,
+    });
+
+    if (!recorded.ok) {
+      return NextResponse.json(
+        {
+          error: recorded.error,
+          workFeedback: recorded.workFeedback,
+          blocked: true,
+        },
+        { status: 400 },
+      );
+    }
+
+    const key = await prisma.pdfAnswerKeyEntry.findUnique({
+      where: {
+        sourceDocumentId_problemNumber: {
+          sourceDocumentId: problem.sourceDocumentId,
+          problemNumber: problem.problemNumber,
+        },
+      },
+    });
+
+    const reveal = openResponseReveal(problem.solution, key);
+
+    return NextResponse.json({
+      manualReview: true,
+      progressStatus: "submitted" as const,
+      sampleAnswer: reveal.sampleAnswer,
+      explanation: reveal.explanation,
+    });
   }
 
   const key = await prisma.pdfAnswerKeyEntry.findUnique({
@@ -94,10 +141,7 @@ export async function POST(request: Request) {
   }
 
   const explanation =
-    problem.solution?.explanationStepByStep ??
-    problem.solution?.childFriendlyExplanation ??
-    problem.solution?.explanationShort ??
-    null;
+    problemExplanationText(problem.solution);
 
   const normalizedRoastUsage: RoastUsage | undefined = roastUsage
     ? {

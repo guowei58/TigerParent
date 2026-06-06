@@ -32,7 +32,7 @@ test("n/a answer key is open response", () => {
   );
 });
 
-test("letter key without mcq text and no choices is open response", () => {
+test("letter key without mcq text still implies multiple choice", () => {
   assert.equal(
     inferQuestionType({
       rawText: "List all the factors of 21.",
@@ -40,7 +40,7 @@ test("letter key without mcq text and no choices is open response", () => {
       choiceCount: 0,
       cleanedTextLength: 30,
     }),
-    "open_response",
+    "multiple_choice",
   );
 });
 

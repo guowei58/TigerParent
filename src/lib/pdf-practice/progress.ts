@@ -45,14 +45,21 @@ export async function getPdfProblemProgressMap(
 
   const attempts = await prisma.pdfProblemAttempt.findMany({
     where: scopeWhere(scope, problemIds),
-    select: { problemId: true, isCorrect: true, skipped: true },
+    select: { problemId: true, isCorrect: true, skipped: true, freeResponseText: true },
     orderBy: { createdAt: "asc" },
   });
 
-  const byProblem = new Map<string, { isCorrect: boolean | null; skipped: boolean }[]>();
+  const byProblem = new Map<
+    string,
+    { isCorrect: boolean | null; skipped: boolean; freeResponseText?: string | null }[]
+  >();
   for (const a of attempts) {
     const list = byProblem.get(a.problemId) ?? [];
-    list.push({ isCorrect: a.isCorrect, skipped: a.skipped });
+    list.push({
+      isCorrect: a.isCorrect,
+      skipped: a.skipped,
+      freeResponseText: a.freeResponseText,
+    });
     byProblem.set(a.problemId, list);
   }
 

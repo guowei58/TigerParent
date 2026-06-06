@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { PdfProblemApproveButton } from "./PdfProblemApproveButton";
+import { PdfProblemApprovalButton } from "./PdfProblemApprovalButton";
+import { PdfProblemReexamineButton } from "./PdfProblemReexamineButton";
 
 type ProblemRow = {
   id: string;
@@ -84,7 +85,11 @@ export function PdfImportProblemsTable({ problems }: { problems: ProblemRow[] })
                     >
                       Review
                     </Link>
-                    {!p.approvedForStudentUse && <PdfProblemApproveButton problemId={p.id} />}
+                    <PdfProblemReexamineButton problemId={p.id} />
+                    <PdfProblemApprovalButton
+                      problemId={p.id}
+                      approved={p.approvedForStudentUse}
+                    />
                     <button
                       type="button"
                       onClick={() => deleteProblem(p)}

@@ -31,7 +31,7 @@ export default async function ConceptPracticePage({
   return (
     <div className="min-h-[100dvh] pb-8">
       {student && <StudentNav displayName={student.displayName} />}
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <Link href="/student/concepts" className="text-sm text-indigo-600">
           ← Practice by Topics
         </Link>

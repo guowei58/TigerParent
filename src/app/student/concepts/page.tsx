@@ -28,13 +28,13 @@ export default async function StudentConceptsPage({
   return (
     <div className="min-h-[100dvh] pb-10 bg-slate-50">
       {student && <StudentNav displayName={student.displayName} />}
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <header className="mb-6">
+      <main className="mx-auto max-w-4xl px-4 py-8">
+        <header className="mb-8">
           <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
             Practice by Topics
           </h1>
           <p className="text-slate-500 text-sm leading-relaxed mt-1.5 max-w-prose">
-            Expand a grade, pick a topic, and practice at your own pace.
+            Choose a subject, then expand a grade to pick a topic or reading passage.
           </p>
         </header>
 

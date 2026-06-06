@@ -1,5 +1,5 @@
 import path from "path";
-import { cropProblemImage } from "./renderPdfPages";
+import { cropProblemImage, trimImageWhitespace } from "./renderPdfPages";
 import type { DetectedProblemRegion } from "./detectProblems";
 import { ensureDir, pdfCropsDir, toDataRelativePath } from "@/lib/storage/fileStorage";
 
@@ -48,6 +48,11 @@ export async function cropProblemImages(
 
     await cropProblemImage(fullPagePath, cropPath, crop);
 
+    const trim = await trimImageWhitespace(cropPath);
+    if (trim.trimmed) {
+      warnings.push("Trimmed blank margins from problem image");
+    }
+
     // Full-page crop preserves diagrams, figures, and answer choices in the PDF image.
     const displayMode: ProblemCropResult["studentDisplayMode"] = "image_crop";
 
@@ -57,8 +62,8 @@ export async function cropProblemImages(
       fullPageImagePath: fullPagePath,
       cropX: crop.x,
       cropY: crop.y,
-      cropWidth: crop.width,
-      cropHeight: crop.height,
+      cropWidth: trim.width || crop.width,
+      cropHeight: trim.height || crop.height,
       studentDisplayMode: displayMode,
       confidence: region.confidence,
       warnings,

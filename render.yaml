@@ -26,3 +26,5 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      - key: PDF_ASSETS_PUBLIC_BASE_URL
+        sync: false

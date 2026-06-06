@@ -67,7 +67,9 @@ export async function POST(request: Request) {
   const ingestionLayout =
     String(form.get("ingestionLayout") ?? "one_problem_per_page") === "auto_detect"
       ? "auto_detect"
-      : "one_problem_per_page";
+      : String(form.get("ingestionLayout") ?? "") === "ela_reading_passages"
+        ? "ela_reading_passages"
+        : "one_problem_per_page";
   const answerKeyPageCount = Math.max(
     0,
     Math.min(50, parseInt(String(form.get("answerKeyPageCount") ?? "1"), 10) || 1),

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useId, useState } from "react";
 
-type IngestionLayout = "one_problem_per_page" | "auto_detect";
+type IngestionLayout = "one_problem_per_page" | "auto_detect" | "ela_reading_passages";
 type RowStatus = "pending" | "uploading" | "done" | "error" | "duplicate";
 
 type PendingPdf = {
@@ -298,7 +298,16 @@ export function PdfUploadForm() {
             <label className="block text-sm font-medium">Subject</label>
             <select
               value={defaults.subject}
-              onChange={(e) => setDefaults((d) => ({ ...d, subject: e.target.value }))}
+              onChange={(e) => {
+                const subject = e.target.value;
+                setDefaults((d) => ({
+                  ...d,
+                  subject,
+                  ingestionLayout:
+                    subject === "english" ? "ela_reading_passages" : d.ingestionLayout,
+                  answerKeyPageCount: subject === "english" ? 1 : d.answerKeyPageCount,
+                }));
+              }}
               className="mt-1 w-full border rounded-lg px-3 py-2"
             >
               <option value="math">Math</option>
@@ -326,7 +335,8 @@ export function PdfUploadForm() {
               }
               className="mt-1 w-full border rounded-lg px-3 py-2"
             >
-              <option value="one_problem_per_page">One problem per page</option>
+              <option value="one_problem_per_page">One problem per page (math)</option>
+              <option value="ela_reading_passages">ELA reading passages</option>
               <option value="auto_detect">Auto-detect (legacy)</option>
             </select>
           </div>
@@ -426,7 +436,15 @@ export function PdfUploadForm() {
                       <label className="block text-xs font-medium text-slate-600">Subject</label>
                       <select
                         value={row.subject}
-                        onChange={(e) => updateRow(row.id, { subject: e.target.value })}
+                        onChange={(e) => {
+                          const subject = e.target.value;
+                          updateRow(row.id, {
+                            subject,
+                            ingestionLayout:
+                              subject === "english" ? "ela_reading_passages" : row.ingestionLayout,
+                            answerKeyPageCount: subject === "english" ? 1 : row.answerKeyPageCount,
+                          });
+                        }}
                         className="mt-0.5 w-full border rounded-lg px-3 py-2 text-sm"
                       >
                         <option value="math">Math</option>
@@ -455,7 +473,8 @@ export function PdfUploadForm() {
                         }
                         className="mt-0.5 w-full border rounded-lg px-3 py-2 text-sm"
                       >
-                        <option value="one_problem_per_page">One problem / page</option>
+                        <option value="one_problem_per_page">One problem / page (math)</option>
+                        <option value="ela_reading_passages">ELA reading passages</option>
                         <option value="auto_detect">Auto-detect</option>
                       </select>
                     </div>

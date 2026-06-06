@@ -8,6 +8,7 @@ type Props = {
   correct: number;
   incorrect: number;
   skipped: number;
+  submitted?: number;
   onReviewWork?: () => void;
 };
 
@@ -18,9 +19,10 @@ export function PracticeSectionSummary({
   correct,
   incorrect,
   skipped,
+  submitted = 0,
   onReviewWork,
 }: Props) {
-  const finished = correct + incorrect + skipped;
+  const finished = correct + incorrect + skipped + submitted;
   const firstTryPct = total > 0 ? Math.round((correct / total) * 100) : 0;
 
   return (
@@ -59,6 +61,12 @@ export function PracticeSectionSummary({
         {skipped > 0 ? (
           <>
             , and <strong>{skipped}</strong> skipped
+          </>
+        ) : null}
+        {submitted > 0 ? (
+          <>
+            {skipped > 0 || incorrect > 0 ? "," : ""} and <strong>{submitted}</strong> saved for
+            parent review
           </>
         ) : null}
         . ({firstTryPct}% first-try correct.)

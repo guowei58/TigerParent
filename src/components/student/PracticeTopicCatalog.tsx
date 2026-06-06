@@ -1,6 +1,40 @@
+"use client";
+
 import Link from "next/link";
-import { formatPracticeSubjectLabel, type PracticeGradeGroup, type PracticeTopicItem } from "@/lib/pdf-practice/selection";
+import { useMemo, useState } from "react";
+import {
+  formatPracticeSubjectLabel,
+  type PracticeGradeGroup,
+  type PracticePassageItem,
+  type PracticeTopicItem,
+} from "@/lib/pdf-practice/catalogTypes";
 import { cn } from "@/lib/utils";
+
+type SubjectCatalog = {
+  subjectKey: string;
+  label: string;
+  grades: {
+    gradeLevel: number;
+    label: string;
+    domains: { domain: string; topics: PracticeTopicItem[] }[];
+    passages?: PracticePassageItem[];
+  }[];
+};
+
+type SubjectTheme = {
+  tabActive: string;
+  tabIdle: string;
+  iconBg: string;
+  iconText: string;
+  domainBg: string;
+  domainBorder: string;
+  progress: string;
+  progressComplete: string;
+  pillActive: string;
+  pillIdle: string;
+  rowHover: string;
+  rowTitleHover: string;
+};
 
 function formatDomainLabel(domain: string): string {
   const trimmed = domain.trim();
@@ -14,45 +48,171 @@ function formatDomainLabel(domain: string): string {
     .join(" ");
 }
 
-function subjectAccent(subject: string): string {
+function isEnglishSubject(subject: string): boolean {
   const s = subject.toLowerCase();
-  if (s.includes("english") || s.includes("ela")) return "border-violet-300";
-  if (s.includes("math")) return "border-indigo-300";
-  return "border-slate-300";
+  return s.includes("english") || s.includes("ela") || s.includes("reading");
 }
 
-function TopicRow({ topic }: { topic: PracticeTopicItem }) {
-  const pct =
-    topic.totalCount > 0 ? Math.min(100, (topic.doneCount / topic.totalCount) * 100) : 0;
+function subjectTheme(subject: string): SubjectTheme {
+  if (isEnglishSubject(subject)) {
+    return {
+      tabActive: "bg-violet-600 text-white shadow-sm shadow-violet-200",
+      tabIdle: "bg-white text-slate-600 border border-slate-200 hover:border-violet-200 hover:text-violet-700",
+      iconBg: "bg-violet-100",
+      iconText: "text-violet-800",
+      domainBg: "bg-violet-50/40",
+      domainBorder: "border-violet-100",
+      progress: "bg-violet-400",
+      progressComplete: "bg-emerald-500",
+      pillActive: "bg-violet-100 text-violet-800",
+      pillIdle: "bg-slate-100 text-slate-500",
+      rowHover: "hover:border-violet-100 hover:bg-white",
+      rowTitleHover: "group-hover:text-violet-800",
+    };
+  }
+  if (subject.toLowerCase().includes("math")) {
+    return {
+      tabActive: "bg-indigo-600 text-white shadow-sm shadow-indigo-200",
+      tabIdle: "bg-white text-slate-600 border border-slate-200 hover:border-indigo-200 hover:text-indigo-700",
+      iconBg: "bg-indigo-100",
+      iconText: "text-indigo-800",
+      domainBg: "bg-indigo-50/40",
+      domainBorder: "border-indigo-100",
+      progress: "bg-indigo-400",
+      progressComplete: "bg-emerald-500",
+      pillActive: "bg-indigo-100 text-indigo-800",
+      pillIdle: "bg-slate-100 text-slate-500",
+      rowHover: "hover:border-indigo-100 hover:bg-white",
+      rowTitleHover: "group-hover:text-indigo-800",
+    };
+  }
+  return {
+    tabActive: "bg-slate-700 text-white shadow-sm",
+    tabIdle: "bg-white text-slate-600 border border-slate-200 hover:border-slate-300",
+    iconBg: "bg-slate-100",
+    iconText: "text-slate-700",
+    domainBg: "bg-slate-50",
+    domainBorder: "border-slate-200",
+    progress: "bg-slate-400",
+    progressComplete: "bg-emerald-500",
+    pillActive: "bg-slate-200 text-slate-800",
+    pillIdle: "bg-slate-100 text-slate-500",
+    rowHover: "hover:border-slate-200 hover:bg-white",
+    rowTitleHover: "group-hover:text-slate-900",
+  };
+}
+
+function pivotCatalog(catalog: PracticeGradeGroup[]): SubjectCatalog[] {
+  const bySubject = new Map<string, SubjectCatalog>();
+
+  for (const grade of catalog) {
+    for (const subject of grade.subjects) {
+      if (!bySubject.has(subject.subject)) {
+        bySubject.set(subject.subject, {
+          subjectKey: subject.subject,
+          label: formatPracticeSubjectLabel(subject.subject),
+          grades: [],
+        });
+      }
+      bySubject.get(subject.subject)!.grades.push({
+        gradeLevel: grade.gradeLevel,
+        label: grade.label,
+        domains: subject.domains,
+        passages: subject.passages,
+      });
+    }
+  }
+
+  return [...bySubject.values()]
+    .map((entry) => ({
+      ...entry,
+      grades: entry.grades.sort((a, b) => a.gradeLevel - b.gradeLevel),
+    }))
+    .sort((a, b) => {
+      const order = (s: string) =>
+        isEnglishSubject(s) ? 1 : s.toLowerCase().includes("math") ? 0 : 2;
+      return order(a.subjectKey) - order(b.subjectKey) || a.label.localeCompare(b.label);
+    });
+}
+
+function gradeStats(grade: SubjectCatalog["grades"][0]) {
+  let topics = 0;
+  let total = 0;
+  let done = 0;
+
+  if (grade.passages?.length) {
+    topics += grade.passages.length;
+    for (const p of grade.passages) {
+      total += p.totalCount;
+      done += p.doneCount;
+    }
+  }
+  for (const domain of grade.domains) {
+    topics += domain.topics.length;
+    for (const t of domain.topics) {
+      total += t.totalCount;
+      done += t.doneCount;
+    }
+  }
+
+  return { topics, total, done, left: Math.max(0, total - done) };
+}
+
+function subjectStats(subject: SubjectCatalog) {
+  let topics = 0;
+  let total = 0;
+  let done = 0;
+  for (const grade of subject.grades) {
+    const s = gradeStats(grade);
+    topics += s.topics;
+    total += s.total;
+    done += s.done;
+  }
+  return { topics, total, done };
+}
+
+function ProgressPill({
+  done,
+  total,
+  theme,
+}: {
+  done: number;
+  total: number;
+  theme: SubjectTheme;
+}) {
+  const complete = total > 0 && done >= total;
+  return (
+    <span
+      className={cn(
+        "shrink-0 text-[11px] font-semibold tabular-nums px-2.5 py-0.5 rounded-full",
+        complete ? "bg-emerald-50 text-emerald-700" : done > 0 ? theme.pillActive : theme.pillIdle,
+      )}
+    >
+      {complete ? "Done" : `${done}/${total}`}
+    </span>
+  );
+}
+
+function TopicRow({ topic, theme }: { topic: PracticeTopicItem; theme: SubjectTheme }) {
+  const pct = topic.totalCount > 0 ? Math.min(100, (topic.doneCount / topic.totalCount) * 100) : 0;
   const complete = topic.totalCount > 0 && topic.leftCount === 0;
 
   return (
     <Link
       href={`/student/concepts/${topic.slug}?grade=${topic.gradeLevel}`}
       className={cn(
-        "group block rounded-lg border border-transparent px-3 py-2.5",
-        "hover:border-slate-200 hover:bg-white hover:shadow-sm transition-all",
+        "group flex flex-col gap-2 rounded-xl border border-transparent px-3 py-2.5 transition-all",
+        theme.rowHover,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-[15px] leading-snug text-slate-800 group-hover:text-indigo-700">
+      <div className="flex items-center justify-between gap-3">
+        <span className={cn("text-sm font-medium text-slate-800 leading-snug", theme.rowTitleHover)}>
           {topic.name}
         </span>
-        <span
-          className={cn(
-            "shrink-0 text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full",
-            complete
-              ? "bg-emerald-50 text-emerald-700"
-              : topic.doneCount > 0
-                ? "bg-indigo-50 text-indigo-700"
-                : "bg-slate-100 text-slate-500",
-          )}
-        >
-          {complete ? "Done" : `${topic.doneCount}/${topic.totalCount}`}
-        </span>
+        <ProgressPill done={topic.doneCount} total={topic.totalCount} theme={theme} />
       </div>
       <div
-        className="mt-2 h-1 rounded-full bg-slate-100 overflow-hidden"
+        className="h-1 rounded-full bg-white/80 ring-1 ring-slate-100 overflow-hidden"
         role="progressbar"
         aria-valuenow={topic.doneCount}
         aria-valuemin={0}
@@ -60,34 +220,69 @@ function TopicRow({ topic }: { topic: PracticeTopicItem }) {
         aria-label={`${topic.doneCount} of ${topic.totalCount} complete`}
       >
         <div
-          className={cn(
-            "h-full rounded-full transition-[width]",
-            complete ? "bg-emerald-500" : "bg-indigo-400/90",
-          )}
+          className={cn("h-full rounded-full transition-[width]", complete ? theme.progressComplete : theme.progress)}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="mt-1.5 text-[11px] text-slate-400 tabular-nums">
-        {topic.totalCount} total · {topic.doneCount} done · {topic.leftCount} left
-      </p>
     </Link>
   );
 }
 
-function gradeStats(grade: PracticeGradeGroup, subjects: PracticeGradeGroup["subjects"]) {
-  let topics = 0;
-  let total = 0;
-  let done = 0;
-  for (const subject of subjects) {
-    for (const domain of subject.domains) {
-      topics += domain.topics.length;
-      for (const t of domain.topics) {
-        total += t.totalCount;
-        done += t.doneCount;
-      }
-    }
+function PassageRow({ passage, theme }: { passage: PracticePassageItem; theme: SubjectTheme }) {
+  const pct =
+    passage.totalCount > 0 ? Math.min(100, (passage.doneCount / passage.totalCount) * 100) : 0;
+  const complete = passage.totalCount > 0 && passage.leftCount === 0;
+
+  return (
+    <Link
+      href={`/student/passages/${passage.id}?grade=${passage.gradeLevel}`}
+      className={cn(
+        "group flex flex-col gap-2 rounded-xl border border-transparent px-3 py-2.5 transition-all",
+        theme.rowHover,
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className={cn("block text-sm font-medium text-slate-800 leading-snug", theme.rowTitleHover)}>
+            {passage.title}
+          </span>
+          {passage.subtitle && (
+            <span className="mt-0.5 block text-xs text-slate-400 truncate">{passage.subtitle}</span>
+          )}
+        </div>
+        <ProgressPill done={passage.doneCount} total={passage.totalCount} theme={theme} />
+      </div>
+      <div
+        className="h-1 rounded-full bg-white/80 ring-1 ring-slate-100 overflow-hidden"
+        role="progressbar"
+        aria-valuenow={passage.doneCount}
+        aria-valuemin={0}
+        aria-valuemax={passage.totalCount}
+      >
+        <div
+          className={cn("h-full rounded-full transition-[width]", complete ? theme.progressComplete : theme.progress)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </Link>
+  );
+}
+
+function resolveInitialSubject(
+  subjects: SubjectCatalog[],
+  highlightSubject?: string | null,
+): string {
+  if (highlightSubject) {
+    const filter = highlightSubject.toLowerCase();
+    const match = subjects.find((s) => {
+      const key = s.subjectKey.toLowerCase();
+      if (filter.includes("math")) return key.includes("math");
+      if (filter.includes("english") || filter.includes("ela")) return isEnglishSubject(key);
+      return key.includes(filter);
+    });
+    if (match) return match.subjectKey;
   }
-  return { topics, total, done, left: Math.max(0, total - done) };
+  return subjects[0]?.subjectKey ?? "";
 }
 
 export function PracticeTopicCatalog({
@@ -97,7 +292,12 @@ export function PracticeTopicCatalog({
   catalog: PracticeGradeGroup[];
   highlightSubject?: string | null;
 }) {
-  if (catalog.length === 0) {
+  const subjects = useMemo(() => pivotCatalog(catalog), [catalog]);
+  const [activeSubject, setActiveSubject] = useState(() =>
+    resolveInitialSubject(subjects, highlightSubject),
+  );
+
+  if (subjects.length === 0) {
     return (
       <p className="text-slate-600 text-base leading-relaxed">
         No approved practice topics yet. Ask your admin to upload and approve PDF problems.
@@ -105,112 +305,155 @@ export function PracticeTopicCatalog({
     );
   }
 
-  const subjectFilter = highlightSubject?.toLowerCase() ?? null;
-
-  function matchesSubjectFilter(subjectKey: string): boolean {
-    if (!subjectFilter) return true;
-    const s = subjectKey.toLowerCase();
-    if (subjectFilter.includes("math")) return s.includes("math");
-    if (subjectFilter.includes("english") || subjectFilter.includes("ela")) {
-      return s.includes("english") || s.includes("ela") || s.includes("reading");
-    }
-    return s.includes(subjectFilter);
-  }
-
-  const visibleGrades = catalog
-    .map((grade) => ({
-      grade,
-      subjects: grade.subjects.filter((s) => matchesSubjectFilter(s.subject)),
-    }))
-    .filter((g) => g.subjects.length > 0);
+  const current = subjects.find((s) => s.subjectKey === activeSubject) ?? subjects[0]!;
+  const theme = subjectTheme(current.subjectKey);
+  const stats = subjectStats(current);
 
   return (
-    <div className="space-y-4">
-      {visibleGrades.length > 1 && (
-        <nav
-          className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none"
-          aria-label="Jump to grade"
+    <div className="space-y-5">
+      {subjects.length > 1 && (
+        <div
+          className="flex flex-wrap gap-2"
+          role="tablist"
+          aria-label="Choose subject"
         >
-          {visibleGrades.map(({ grade }) => (
-            <a
-              key={grade.gradeLevel}
-              href={`#grade-${grade.gradeLevel}`}
-              className="shrink-0 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:border-indigo-300 hover:text-indigo-700 shadow-sm"
-            >
-              {grade.label}
-            </a>
-          ))}
-        </nav>
+          {subjects.map((subject) => {
+            const s = subjectStats(subject);
+            const active = subject.subjectKey === current.subjectKey;
+            const t = subjectTheme(subject.subjectKey);
+            return (
+              <button
+                key={subject.subjectKey}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveSubject(subject.subjectKey)}
+                className={cn(
+                  "rounded-xl px-4 py-2.5 text-left transition-all min-w-[8.5rem]",
+                  active ? t.tabActive : t.tabIdle,
+                )}
+              >
+                <span className="block text-sm font-semibold">{subject.label}</span>
+                <span
+                  className={cn(
+                    "block text-[11px] tabular-nums mt-0.5",
+                    active ? "text-white/80" : "text-slate-400",
+                  )}
+                >
+                  {s.topics} topics · {s.done}/{s.total}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       )}
 
-      {visibleGrades.map(({ grade, subjects }, gradeIndex) => {
-        const stats = gradeStats(grade, subjects);
-
-        return (
-          <details
-            key={grade.gradeLevel}
-            id={`grade-${grade.gradeLevel}`}
-            open={gradeIndex === 0}
-            className="group/grade scroll-mt-24 rounded-2xl border border-slate-200/70 bg-white/90 shadow-sm overflow-hidden"
-          >
-            <summary
-              className={cn(
-                "flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3.5 sm:px-5",
-                "hover:bg-slate-50/80 transition-colors",
-                "[&::-webkit-details-marker]:hidden",
-              )}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 text-sm font-semibold"
-                  aria-hidden
-                >
-                  {grade.gradeLevel > 0 ? grade.gradeLevel : "·"}
-                </span>
-                <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-slate-900">{grade.label}</h2>
-                  <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
-                    {stats.topics} topics · {stats.done}/{stats.total} done
-                  </p>
-                </div>
-              </div>
-              <span className="text-slate-400 text-xs shrink-0 group-open/grade:rotate-180 transition-transform">
-                ▼
-              </span>
-            </summary>
-
-            <div className="border-t border-slate-100 px-3 pb-4 pt-2 sm:px-4 space-y-6">
-              {subjects.map((subject) => (
-                <section
-                  key={`${grade.gradeLevel}-${subject.subject}`}
-                  className={cn("border-l-2 pl-4", subjectAccent(subject.subject))}
-                >
-                  <h3 className="text-sm font-semibold text-slate-800">
-                    {formatPracticeSubjectLabel(subject.subject)}
-                  </h3>
-
-                  <div className="mt-3 space-y-4">
-                    {subject.domains.map((domainGroup) => (
-                      <div key={domainGroup.domain}>
-                        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-1.5">
-                          {formatDomainLabel(domainGroup.domain)}
-                        </p>
-                        <ul className="grid gap-0.5 sm:grid-cols-2 sm:gap-x-2">
-                          {domainGroup.topics.map((topic) => (
-                            <li key={`${topic.id}-${topic.gradeLevel}`}>
-                              <TopicRow topic={topic} />
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ))}
+      <section
+        role="tabpanel"
+        aria-label={current.label}
+        className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden"
+      >
+        <div className={cn("border-b border-slate-100 px-5 py-4", theme.domainBg)}>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">{current.label}</h2>
+              <p className="text-xs text-slate-500 mt-1 tabular-nums">
+                {current.grades.length} grade{current.grades.length === 1 ? "" : "s"} · {stats.topics}{" "}
+                topics · {stats.done}/{stats.total} done
+              </p>
             </div>
-          </details>
-        );
-      })}
+          </div>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {current.grades.map((grade, gradeIndex) => {
+            const gStats = gradeStats(grade);
+
+            return (
+              <details
+                key={grade.gradeLevel}
+                open={gradeIndex === 0}
+                className="group/grade"
+              >
+                <summary
+                  className={cn(
+                    "flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-3.5",
+                    "hover:bg-slate-50/70 transition-colors",
+                    "[&::-webkit-details-marker]:hidden",
+                  )}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className={cn(
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
+                        theme.iconBg,
+                        theme.iconText,
+                      )}
+                      aria-hidden
+                    >
+                      {grade.gradeLevel > 0 ? grade.gradeLevel : "·"}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-slate-900">{grade.label}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
+                        {gStats.topics} topics · {gStats.done}/{gStats.total} done
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-slate-300 text-[10px] shrink-0 group-open/grade:rotate-180 transition-transform">
+                    ▼
+                  </span>
+                </summary>
+
+                <div className="px-4 pb-5 pt-1 space-y-4 bg-slate-50/50">
+                  {grade.passages && grade.passages.length > 0 && (
+                    <div
+                      className={cn(
+                        "rounded-xl border p-3 sm:p-4",
+                        theme.domainBorder,
+                        theme.domainBg,
+                      )}
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 px-1">
+                        Reading passages
+                      </p>
+                      <ul className="grid gap-1 sm:grid-cols-2">
+                        {grade.passages.map((passage) => (
+                          <li key={passage.id}>
+                            <PassageRow passage={passage} theme={theme} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {grade.domains.map((domainGroup) => (
+                    <div
+                      key={domainGroup.domain}
+                      className={cn(
+                        "rounded-xl border p-3 sm:p-4",
+                        theme.domainBorder,
+                        theme.domainBg,
+                      )}
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 px-1">
+                        {formatDomainLabel(domainGroup.domain)}
+                      </p>
+                      <ul className="grid gap-1 sm:grid-cols-2">
+                        {domainGroup.topics.map((topic) => (
+                          <li key={`${topic.id}-${topic.gradeLevel}`}>
+                            <TopicRow topic={topic} theme={theme} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }

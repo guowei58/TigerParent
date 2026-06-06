@@ -16,9 +16,6 @@ type PdfTextItem = {
   height: number;
 };
 
-/** Standalone problem index at line start: "4", "4.", "10." */
-const PROBLEM_NUMBER_RE = /^(\d{1,3})(\.)?$/;
-
 function itemBounds(
   item: PdfTextItem,
   viewport: { transform: number[] },
@@ -45,6 +42,22 @@ function itemBounds(
   };
 }
 
+/** Standalone problem index at line start: "4", "4.", "10." */
+const PROBLEM_NUMBER_RE = /^(\d{1,3})(\.)?$/;
+
+export function positionedItemsFromTextContent(
+  content: { items: unknown[] },
+  viewport: { transform: number[] },
+  util: { transform: (m1: number[], m2: number[]) => number[] },
+): PositionedTextItem[] {
+  const items: PositionedTextItem[] = [];
+  for (const raw of content.items as PdfTextItem[]) {
+    const bounds = itemBounds(raw, viewport, util);
+    if (bounds) items.push(bounds);
+  }
+  return items;
+}
+
 export async function getPagePositionedTextItems(
   pdfFilePath: string,
   pageNumber: number,
@@ -59,14 +72,7 @@ export async function getPagePositionedTextItems(
     const page = await doc.getPage(pageNumber);
     const viewport = page.getViewport({ scale });
     const content = await page.getTextContent();
-    const items: PositionedTextItem[] = [];
-
-    for (const raw of content.items as PdfTextItem[]) {
-      const bounds = itemBounds(raw, viewport, pdfjs.Util);
-      if (bounds) items.push(bounds);
-    }
-
-    return items;
+    return positionedItemsFromTextContent(content, viewport, pdfjs.Util);
   } finally {
     await doc.destroy();
   }

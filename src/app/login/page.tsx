@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { signIn, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/Button";
 import {
   AuthField,
   AuthInlineLink,
-  AuthLinkRow,
   AuthMessage,
   AuthShell,
   DevAuthLink,
@@ -18,7 +18,6 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
-  const parentPortalNotice = searchParams.get("notice") === "parent-portal-removed";
   const verified = searchParams.get("verified") === "1";
 
   const [email, setEmail] = useState("");
@@ -27,7 +26,6 @@ function LoginForm() {
   const [info, setInfo] = useState(verified ? "Email verified! Sign in to continue." : "");
   const [devLink, setDevLink] = useState("");
   const [loading, setLoading] = useState(false);
-  const [magicLoading, setMagicLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
 
@@ -62,7 +60,15 @@ function LoginForm() {
 
     const sessionRes = await fetch("/api/auth/session");
     const session = (await sessionRes.json()) as { user?: { role?: string } };
-    const role = session?.user?.role ?? "STUDENT";
+    const role = session?.user?.role ?? "";
+
+    if (role !== "ADMIN" && role !== "STUDENT") {
+      await signOut({ redirect: false });
+      setError("Invalid email or password.");
+      setLoading(false);
+      return;
+    }
+
     const destination =
       callbackUrl === "/" || isDeprecatedParentPortalPath(callbackUrl)
         ? portalPath(role)
@@ -70,36 +76,6 @@ function LoginForm() {
 
     router.push(destination);
     router.refresh();
-  };
-
-  const handleMagicLink = async () => {
-    if (!email.trim()) {
-      setError("Enter your email address first.");
-      return;
-    }
-    setMagicLoading(true);
-    setError("");
-    setInfo("");
-    setDevLink("");
-    setNeedsVerification(false);
-
-    const res = await fetch("/api/auth/magic-link", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setMagicLoading(false);
-
-    if (!res.ok) {
-      setError(data.error ?? "Could not send sign-in link.");
-      return;
-    }
-
-    setInfo(data.message ?? "Check your email for a sign-in link.");
-    if (data.signInUrl) {
-      setDevLink(data.signInUrl);
-    }
   };
 
   const handleResendVerification = async () => {
@@ -132,17 +108,7 @@ function LoginForm() {
   };
 
   return (
-    <AuthShell
-      title="TigerParent"
-      subtitle="Sign in with your email"
-      footer={
-        <AuthLinkRow>
-          <p className="text-slate-500 text-sm">
-            Parents: open the <strong>Parents</strong> tab after signing in as a student.
-          </p>
-        </AuthLinkRow>
-      }
-    >
+    <AuthShell title="TigerParent" subtitle="Sign in with your email">
       <form onSubmit={handleSubmit} className="space-y-4">
         <AuthField
           label="Email"
@@ -166,12 +132,6 @@ function LoginForm() {
         </div>
 
         {error && <AuthMessage tone="error">{error}</AuthMessage>}
-        {parentPortalNotice && (
-          <AuthMessage tone="success">
-            The separate parent portal is no longer used. Sign in with a student account
-            (Parents tab is inside the student app) or an admin account.
-          </AuthMessage>
-        )}
         {info && <AuthMessage tone="success">{info}</AuthMessage>}
         {devLink && (
           <DevAuthLink
@@ -186,27 +146,22 @@ function LoginForm() {
             variant="secondary"
             size="lg"
             className="w-full"
-            disabled={loading || magicLoading || resendLoading}
+            disabled={loading || resendLoading}
             onClick={handleResendVerification}
           >
             {resendLoading ? "Sending..." : "Resend verification email"}
           </Button>
         )}
 
-        <Button type="submit" size="lg" className="w-full" disabled={loading || magicLoading || resendLoading}>
+        <Button type="submit" size="lg" className="w-full" disabled={loading || resendLoading}>
           {loading ? "Signing in..." : "Sign In"}
         </Button>
 
-        <Button
-          type="button"
-          variant="secondary"
-          size="lg"
-          className="w-full"
-          disabled={loading || magicLoading || resendLoading}
-          onClick={handleMagicLink}
-        >
-          {magicLoading ? "Sending link..." : "Email me a sign-in link"}
-        </Button>
+        <Link href="/signup" className="block">
+          <Button type="button" variant="secondary" size="lg" className="w-full">
+            Sign up
+          </Button>
+        </Link>
       </form>
     </AuthShell>
   );

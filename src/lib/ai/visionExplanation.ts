@@ -49,6 +49,17 @@ export function hasVisionExplanationProvider(): boolean {
   return Boolean(getOpenAiVisionConfig() || getGeminiVisionConfig());
 }
 
+/** Set when Gemini returns quota/billing 429 — skip further Gemini calls this process. */
+let geminiQuotaExhausted = false;
+
+export function markGeminiQuotaExhausted(): void {
+  geminiQuotaExhausted = true;
+}
+
+export function isGeminiQuotaExhausted(): boolean {
+  return geminiQuotaExhausted;
+}
+
 export async function loadProblemImagePng(storedPath: string): Promise<Buffer | null> {
   const abs = resolveDataPath(storedPath);
   if (!fs.existsSync(abs)) return null;
@@ -137,6 +148,14 @@ function buildVisionUserText(
     );
   }
 
+  if (input.passageText?.trim()) {
+    lines.push(
+      "",
+      "Reading passage (use this for paragraph references — the question image may not include the passage):",
+      input.passageText.trim().slice(0, 6000),
+    );
+  }
+
   const excerpt = input.cleanedText.trim().slice(0, 400);
   if (excerpt) {
     lines.push("", "Noisy PDF text excerpt (unreliable):", excerpt);
@@ -210,46 +229,63 @@ async function callVisionChat(
   return null;
 }
 
-async function callGeminiVision(
+export async function callGeminiVision(
   config: { apiKey: string; model: string },
   system: string,
   userText: string,
   imagePng: Buffer,
 ): Promise<string | null> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: userText },
-            { inlineData: { mimeType: "image/png", data: imagePng.toString("base64") } },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: "application/json",
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: userText },
+          { inlineData: { mimeType: "image/png", data: imagePng.toString("base64") } },
+        ],
       },
-    }),
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      responseMimeType: "application/json",
+    },
   });
 
-  if (!res.ok) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
+      };
+      return data.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+    }
+
     const errBody = await res.text().catch(() => "");
-    const short =
-      errBody.length > 200 ? `${errBody.slice(0, 200)}…` : errBody;
+    const short = errBody.length > 200 ? `${errBody.slice(0, 200)}…` : errBody;
+    if (res.status === 429 && attempt < 4) {
+      if (/quota|billing|exceeded your current/i.test(errBody)) {
+        markGeminiQuotaExhausted();
+        console.error("[vision-gemini] quota exhausted — skipping Gemini for this run");
+        return null;
+      }
+      const waitMs = parseRetryAfterMs(res, errBody);
+      console.error(`[vision-gemini] rate limited, retry in ${waitMs}ms`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
+
     console.error("[vision-gemini] HTTP", res.status, short);
     return null;
   }
 
-  const data = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+  return null;
 }
 
 /**
@@ -268,7 +304,7 @@ export async function generateExplanationFromProblemImage(
   const userText = buildVisionUserText(input, deepseekDraft);
 
   const geminiBase = getGeminiVisionConfig();
-  if (geminiBase) {
+  if (geminiBase && !geminiQuotaExhausted && process.env.SKIP_GEMINI_VISION !== "1") {
     const models = [geminiBase.model, "gemini-2.0-flash-lite"].filter(
       (m, i, a) => a.indexOf(m) === i,
     );
