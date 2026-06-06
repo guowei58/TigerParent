@@ -412,6 +412,7 @@ export async function getStudentDailyWork(
         passage.promptText?.trim().slice(0, 80) ||
         `Passage ${passage.passageNumber}`
       : null;
+    const passageView = passage ? passageViewFromDb(passage) : null;
     return {
       id: row.id,
       createdAt: row.createdAt,
@@ -428,8 +429,12 @@ export async function getStudentDailyWork(
       imageUrl: assetUrl(problemDisplayImagePath(row.problem)),
       passageId: row.problem.passageId,
       passageTitle,
-      passage: passage ? passageViewFromDb(passage) : null,
-      isElaReading: isElaReadingProblem(row.problem),
+      passage: passageView,
+      isElaReading: isElaReadingProblem({
+        subject: row.problem.subject,
+        passageId: row.problem.passageId,
+        passage: passageView,
+      }),
       strokes: row.strokes
         ? {
             strokeDataJson: row.strokes.strokeDataJson,
