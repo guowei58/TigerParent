@@ -97,7 +97,7 @@ export function getWorkFeedback(
     return "Use the scratchpad to show your work before submitting.";
   }
   if (quality.showedWork) {
-    return "Bonus: nice use of the scratchpad!";
+    return "Nice use of the scratchpad!";
   }
   return null;
 }

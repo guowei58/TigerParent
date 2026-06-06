@@ -57,8 +57,6 @@ export function PracticeClient({
 
   const [index, setIndex] = useState(initialProblemIndex);
 
-  const [xp, setXp] = useState(0);
-
   const [done, setDone] = useState(false);
 
   const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
@@ -176,8 +174,6 @@ export function PracticeClient({
 
         </CardTitle>
 
-        <p className="text-slate-500">{xp} XP earned</p>
-
         {isPopQuiz ? (
           <Button onClick={() => router.push("/student")}>Back to Home</Button>
         ) : nextUnit ? (
@@ -290,8 +286,6 @@ export function PracticeClient({
 
           }
 
-          if (result.xpEarned) setXp((x) => x + result.xpEarned);
-
 
 
           return {
@@ -303,8 +297,6 @@ export function PracticeClient({
             roast: result.roast,
 
             workFeedback: result.workFeedback,
-
-            workBonusXp: result.workBonusXp,
 
             placementChange: result.placementChange,
 

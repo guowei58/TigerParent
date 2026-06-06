@@ -35,7 +35,6 @@ export function RecentPracticeSection({
                       {practice.doneCount} done · {practice.correctCount} right ·{" "}
                       {practice.wrongOrSkippedCount} wrong/skipped
                     </p>
-                    <p className="text-indigo-600 font-semibold mt-1">+{practice.xpEarned} XP</p>
                   </li>
                 ))}
               </ul>

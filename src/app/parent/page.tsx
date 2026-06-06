@@ -61,12 +61,11 @@ export default async function ParentDashboardPage() {
               </Badge>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatBox label="Weekly Min" value={Math.round(report.totalMinutes)} accent="indigo" />
               <StatBox label="Accuracy" value={formatPercent(report.accuracy)} accent="emerald" />
               <StatBox label="Streak" value={`${student.streakDays}d`} accent="amber" />
               <StatBox label="Sessions" value={report.sessionsCompleted} accent="rose" />
-              <StatBox label="XP" value={student.xp} accent="indigo" />
             </div>
 
             <div className="mt-4 grid md:grid-cols-2 gap-3">

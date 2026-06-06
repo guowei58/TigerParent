@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import {
   buildGoalProgress,
   defaultStreakTitle,
-  defaultXpCashTitle,
 } from "@/lib/rewards";
 import {
   getActiveRewardGoals,
@@ -15,7 +14,6 @@ async function studentSnapshot(studentId: string) {
   return prisma.studentProfile.findUniqueOrThrow({
     where: { id: studentId },
     select: {
-      xp: true,
       streakDays: true,
       dailyGoalMinutes: true,
       targetAheadMonths: true,
@@ -25,9 +23,11 @@ async function studentSnapshot(studentId: string) {
 
 function mapGoals(
   goals: Awaited<ReturnType<typeof getActiveRewardGoals>>,
-  student: { xp: number; streakDays: number },
+  student: { streakDays: number },
 ) {
-  return goals.map((g) => buildGoalProgress(g, student));
+  return goals
+    .filter((g) => g.goalType === "STREAK")
+    .map((g) => buildGoalProgress(g, student));
 }
 
 export async function GET() {
@@ -45,12 +45,13 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    xp: student.xp,
     streakDays: student.streakDays,
     dailyGoalMinutes: student.dailyGoalMinutes,
     targetAheadMonths: student.targetAheadMonths,
     activeGoals: mapGoals(activeGoals, student),
-    history: history.map((g) => buildGoalProgress(g, student)),
+    history: history
+      .filter((g) => g.goalType === "STREAK")
+      .map((g) => buildGoalProgress(g, student)),
   });
 }
 
@@ -78,7 +79,10 @@ export async function POST(request: Request) {
   }
 
   if (action === "create") {
-    const goalType = body.goalType === "STREAK" ? "STREAK" : "XP";
+    if (body.goalType !== "STREAK") {
+      return NextResponse.json({ error: "Only streak goals are supported" }, { status: 400 });
+    }
+
     const title = String(body.title ?? "").trim();
     const description = body.description
       ? String(body.description).trim()
@@ -87,42 +91,23 @@ export async function POST(request: Request) {
       ? Math.round(Number(body.cashRewardCents))
       : null;
 
-    let xpRequired: number | null = null;
-    let streakDays: number | null = null;
-
-    if (goalType === "STREAK") {
-      streakDays = Math.round(Number(body.streakDays));
-      if (!Number.isFinite(streakDays) || streakDays < 1 || streakDays > 365) {
-        return NextResponse.json(
-          { error: "Streak must be between 1 and 365 days" },
-          { status: 400 },
-        );
-      }
-    } else {
-      xpRequired = Math.round(Number(body.xpRequired));
-      if (!Number.isFinite(xpRequired) || xpRequired < 50 || xpRequired > 100000) {
-        return NextResponse.json(
-          { error: "XP target must be between 50 and 100,000" },
-          { status: 400 },
-        );
-      }
+    const streakDays = Math.round(Number(body.streakDays));
+    if (!Number.isFinite(streakDays) || streakDays < 1 || streakDays > 365) {
+      return NextResponse.json(
+        { error: "Streak must be between 1 and 365 days" },
+        { status: 400 },
+      );
     }
 
-    const resolvedTitle =
-      title ||
-      (goalType === "STREAK"
-        ? defaultStreakTitle(streakDays!)
-        : cashRewardCents
-          ? defaultXpCashTitle(xpRequired!, cashRewardCents)
-          : `${xpRequired} XP reward`);
+    const resolvedTitle = title || defaultStreakTitle(streakDays);
 
     const goal = await prisma.studentRewardGoal.create({
       data: {
         studentId,
-        goalType,
+        goalType: "STREAK",
         title: resolvedTitle,
         description,
-        xpRequired,
+        xpRequired: null,
         streakDays,
         cashRewardCents:
           cashRewardCents && cashRewardCents > 0 ? cashRewardCents : null,

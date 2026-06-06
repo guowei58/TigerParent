@@ -37,7 +37,7 @@ export default async function HomePage() {
           {[
             {
               title: "Students",
-              desc: "30-minute daily missions, stylus work, lessons, and rewards",
+              desc: "30-minute daily missions, stylus work, and lessons",
             },
             {
               title: "Review your kid's work",

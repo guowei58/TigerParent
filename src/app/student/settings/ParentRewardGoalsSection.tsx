@@ -11,7 +11,6 @@ import {
 } from "@/lib/rewards";
 
 type ParentRewardGoalsSectionProps = {
-  studentXp: number;
   streakDays: number;
   dailyGoalMinutes: number;
   targetAheadMonths: number;
@@ -19,14 +18,15 @@ type ParentRewardGoalsSectionProps = {
 };
 
 export function ParentRewardGoalsSection({
-  studentXp,
   streakDays,
   dailyGoalMinutes,
   targetAheadMonths,
   activeGoals: initialGoals,
 }: ParentRewardGoalsSectionProps) {
   const router = useRouter();
-  const [goals, setGoals] = useState(initialGoals);
+  const [goals, setGoals] = useState(
+    initialGoals.filter((g) => g.goalType === "STREAK"),
+  );
   const [dailyGoal, setDailyGoal] = useState(String(dailyGoalMinutes));
   const [aheadMonths, setAheadMonths] = useState(String(targetAheadMonths));
   const [loading, setLoading] = useState(false);
@@ -55,28 +55,15 @@ export function ParentRewardGoalsSection({
     return base;
   });
 
-  const [xpRewardRows, setXpRewardRows] = useState<
-    { xp: string; dollars: string; label: string }[]
-  >(() => {
-    const xpGoals = initialGoals.filter((g) => g.goalType === "XP");
-    if (xpGoals.length) {
-      return xpGoals.map((g) => ({
-        xp: String(g.xpRequired ?? ""),
-        dollars: g.cashRewardCents ? String(g.cashRewardCents / 100) : "",
-        label: g.cashRewardCents ? "" : g.title,
-      }));
-    }
-    return [
-      { xp: "500", dollars: "5", label: "" },
-      { xp: "1000", dollars: "10", label: "" },
-    ];
-  });
-
   const refreshGoals = async () => {
     const res = await fetch("/api/student/reward-goals");
     if (res.ok) {
       const data = await res.json();
-      setGoals(data.activeGoals ?? []);
+      setGoals(
+        (data.activeGoals ?? []).filter(
+          (g: RewardGoalProgress) => g.goalType === "STREAK",
+        ),
+      );
     }
     router.refresh();
   };
@@ -130,37 +117,8 @@ export function ParentRewardGoalsSection({
       }
     }
 
-    for (const row of xpRewardRows) {
-      const xp = parseInt(row.xp, 10);
-      if (!Number.isFinite(xp) || xp < 50) continue;
-      const dollars = row.dollars.trim();
-      const res = await fetch("/api/student/reward-goals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "create",
-          goalType: "XP",
-          xpRequired: xp,
-          title:
-            row.label.trim() ||
-            (dollars
-              ? `${xp} XP → $${dollars}`
-              : `${xp} XP reward`),
-          cashRewardCents: dollars
-            ? Math.round(parseFloat(dollars) * 100)
-            : null,
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Could not save XP reward");
-        setLoading(false);
-        return;
-      }
-    }
-
     setLoading(false);
-    setMessage("Reward milestones saved! Your student can see them on Rewards.");
+    setMessage("Streak reward milestones saved.");
     await refreshGoals();
   };
 
@@ -198,11 +156,10 @@ export function ParentRewardGoalsSection({
       <Card>
         <CardTitle>Parent: Reward Goals</CardTitle>
         <p className="text-sm text-slate-500 mt-1">
-          Set streak and XP milestones. Students see progress on the Rewards
-          page — include cash amounts when XP earns money.
+          Set streak milestones for treats or cash rewards.
         </p>
         <p className="text-xs text-slate-400 mt-2">
-          Current: {studentXp} XP · {streakDays}-day streak
+          Current streak: {streakDays} days
         </p>
       </Card>
 
@@ -294,64 +251,11 @@ export function ParentRewardGoalsSection({
         ))}
       </Card>
 
-      <Card className="space-y-3">
-        <CardTitle className="text-base">XP → money rewards</CardTitle>
-        <p className="text-xs text-slate-500">
-          When XP hits the target, the student earns the cash amount.
-        </p>
-        {xpRewardRows.map((row, i) => (
-          <div key={i} className="grid grid-cols-3 gap-2">
-            <input
-              type="number"
-              placeholder="XP"
-              value={row.xp}
-              onChange={(e) => {
-                const next = [...xpRewardRows];
-                next[i] = { ...next[i], xp: e.target.value };
-                setXpRewardRows(next);
-              }}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            />
-            <input
-              type="number"
-              step={0.5}
-              placeholder="$"
-              value={row.dollars}
-              onChange={(e) => {
-                const next = [...xpRewardRows];
-                next[i] = { ...next[i], dollars: e.target.value };
-                setXpRewardRows(next);
-              }}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            />
-            <input
-              placeholder="Or fun reward name"
-              value={row.label}
-              onChange={(e) => {
-                const next = [...xpRewardRows];
-                next[i] = { ...next[i], label: e.target.value };
-                setXpRewardRows(next);
-              }}
-              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            />
-          </div>
-        ))}
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() =>
-            setXpRewardRows([...xpRewardRows, { xp: "", dollars: "", label: "" }])
-          }
-        >
-          + Add XP row
-        </Button>
-      </Card>
-
       {error && <p className="text-sm text-rose-600">{error}</p>}
       {message && <p className="text-sm text-emerald-700">{message}</p>}
 
       <Button onClick={saveAllMilestones} disabled={loading} className="w-full">
-        {loading ? "Saving…" : "Save reward milestones"}
+        {loading ? "Saving…" : "Save streak milestones"}
       </Button>
 
       {goals.length > 0 && (
@@ -367,9 +271,6 @@ export function ParentRewardGoalsSection({
                   )}
                   <p className="text-xs text-slate-500">{g.progressLabel}</p>
                 </div>
-                <span className="text-xs uppercase text-slate-400">
-                  {g.goalType}
-                </span>
               </div>
               <ProgressBar value={g.progressPercent} />
               <div className="flex flex-wrap gap-2">

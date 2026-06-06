@@ -42,7 +42,6 @@ export async function GET(request: Request) {
       id: true,
       displayName: true,
       schoolGrade: true,
-      xp: true,
     },
     orderBy: { displayName: "asc" },
   });

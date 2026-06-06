@@ -9,7 +9,6 @@ type Friend = {
   id: string;
   displayName: string;
   schoolGrade: number;
-  xp: number;
   streakDays?: number;
 };
 
@@ -533,7 +532,7 @@ export function ChatApp({
                 <div>
                   <p className="font-medium">{s.displayName}</p>
                   <p className="text-xs text-slate-500">
-                    {gradeLabel(s.schoolGrade)} · {s.xp} XP
+                    {gradeLabel(s.schoolGrade)}
                   </p>
                 </div>
                 {s.isFriend ? (
@@ -631,7 +630,7 @@ export function ChatApp({
                     <div>
                       <p className="font-medium">{f.displayName}</p>
                       <p className="text-xs text-slate-500">
-                        {gradeLabel(f.schoolGrade)} · {f.xp} XP
+                        {gradeLabel(f.schoolGrade)}
                       </p>
                     </div>
                     <div className="flex gap-2">

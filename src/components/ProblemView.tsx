@@ -25,7 +25,6 @@ type ProblemViewProps = {
     explanation?: string | null;
     roast?: string | null;
     workFeedback?: string | null;
-    workBonusXp?: number;
     blocked?: boolean;
     placementChange?: { direction: "up" | "down"; skillTitle: string } | null;
   }>;
@@ -48,7 +47,6 @@ export function ProblemView({
     explanation?: string | null;
     roast?: string | null;
     workFeedback?: string | null;
-    workBonusXp?: number;
     placementChange?: { direction: "up" | "down"; skillTitle: string } | null;
   } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -137,7 +135,7 @@ export function ProblemView({
           )}
           {!problem.requiresScratchpad && !solved && workQuality.showedWork && (
             <p className="text-sm rounded-xl px-3 py-2 bg-indigo-50 text-indigo-800">
-              ✓ Optional scratch work — earn +1 XP bonus when you submit.
+              ✓ Nice use of the scratchpad.
             </p>
           )}
         </>
@@ -200,9 +198,6 @@ export function ProblemView({
           {feedback.workFeedback && (
             <p className="text-sm opacity-90 border-t border-current/10 pt-2">
               {feedback.workFeedback}
-              {feedback.workBonusXp
-                ? ` (+${feedback.workBonusXp} XP for showing work)`
-                : ""}
             </p>
           )}
           {feedback.placementChange && (

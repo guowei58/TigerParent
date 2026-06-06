@@ -200,7 +200,7 @@ export async function listFriendsData(studentId: string) {
       where: { toStudentId: studentId, status: "PENDING" },
       include: {
         fromStudent: {
-          select: { id: true, displayName: true, schoolGrade: true, xp: true },
+          select: { id: true, displayName: true, schoolGrade: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -209,7 +209,7 @@ export async function listFriendsData(studentId: string) {
       where: { fromStudentId: studentId, status: "PENDING" },
       include: {
         toStudent: {
-          select: { id: true, displayName: true, schoolGrade: true, xp: true },
+          select: { id: true, displayName: true, schoolGrade: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -227,7 +227,6 @@ export async function listFriendsData(studentId: string) {
           id: true,
           displayName: true,
           schoolGrade: true,
-          xp: true,
           streakDays: true,
         },
         orderBy: { displayName: "asc" },

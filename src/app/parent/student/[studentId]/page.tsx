@@ -135,7 +135,7 @@ export default async function ParentStudentPage({
         </Card>
 
         <p className="text-sm text-slate-500">
-          Median time per problem: {medianTime.toFixed(1)}s · Streak: {student.streakDays} days · XP: {student.xp}
+          Median time per problem: {medianTime.toFixed(1)}s · Streak: {student.streakDays} days
         </p>
       </main>
     </div>

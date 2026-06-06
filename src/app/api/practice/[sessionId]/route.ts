@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { checkAnswer } from "@/lib/mission";
 import {
   updateMasteryAfterAttempt,
-  awardXp,
 } from "@/lib/mastery";
 import { parseStrokes } from "@/lib/strokes";
 import {
@@ -16,7 +15,6 @@ import { assertStudentVisibleProblem } from "@/lib/problem-student-gate";
 import { updateProblemPerformanceStats } from "@/lib/problem-performance-calibration";
 import {
   analyzeWorkQuality,
-  getWorkBonusXp,
   getWorkFeedback,
 } from "@/lib/stroke-analysis";
 import { pickRoastForSession } from "@/lib/roast-session";
@@ -177,15 +175,6 @@ export async function POST(
 
   void updateProblemPerformanceStats(problemId).catch(console.error);
 
-  const baseXp = isCorrect ? 10 : 3;
-  const accuracyBonus = isCorrect ? 5 : 0;
-  const workBonus = getWorkBonusXp(workQuality, problem.requiresScratchpad);
-  const xpEarned = await awardXp(
-    session.user.studentProfileId,
-    baseXp + workBonus,
-    accuracyBonus,
-  );
-
   const roast = await pickRoastForSession(sessionId, isCorrect);
 
   return NextResponse.json({
@@ -195,8 +184,6 @@ export async function POST(
     roast,
     workFeedback,
     workQuality,
-    workBonusXp: workBonus,
-    xpEarned,
     placementChange,
   });
   } catch (error) {

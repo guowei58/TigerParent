@@ -14,7 +14,6 @@ export type RecentPracticeSummary = {
   doneCount: number;
   correctCount: number;
   wrongOrSkippedCount: number;
-  xpEarned: number;
 };
 
 function subjectKeyFromName(name: string): string {
@@ -33,35 +32,21 @@ function conceptMatchesSubject(conceptSubject: string, subjectKey: string): bool
   return c.includes("math");
 }
 
-function xpFromLegacyAttempt(isCorrect: boolean): number {
-  return isCorrect ? 15 : 3;
-}
-
-function xpFromPdfStatus(status: PdfProblemProgressStatus | null): number {
-  if (status === "correct") return 15;
-  if (status === "incorrect") return 15;
-  if (status === "submitted") return 10;
-  return 0;
-}
-
 function summarizePdfStatuses(statuses: (PdfProblemProgressStatus | null)[]) {
   let correctCount = 0;
   let wrongOrSkippedCount = 0;
-  let xpEarned = 0;
 
   for (const status of statuses) {
     if (!status) continue;
     if (status === "correct") correctCount++;
     else if (status === "submitted") wrongOrSkippedCount++;
     else wrongOrSkippedCount++;
-    xpEarned += xpFromPdfStatus(status);
   }
 
   return {
     doneCount: correctCount + wrongOrSkippedCount,
     correctCount,
     wrongOrSkippedCount,
-    xpEarned,
   };
 }
 
@@ -112,10 +97,6 @@ async function legacySummariesForSubject(
       if (skillTitle) label = skillTitle;
     }
 
-    const xpEarned = subjectAttempts.reduce(
-      (sum, a) => sum + xpFromLegacyAttempt(a.isCorrect),
-      0,
-    );
     const correctCount = subjectAttempts.filter((a) => a.isCorrect).length;
     const doneCount = subjectAttempts.length;
 
@@ -128,7 +109,6 @@ async function legacySummariesForSubject(
       doneCount,
       correctCount,
       wrongOrSkippedCount: doneCount - correctCount,
-      xpEarned,
     });
 
     if (summaries.length >= limit) break;

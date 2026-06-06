@@ -60,7 +60,6 @@ export function MissionClient({
   const [phaseIndex, setPhaseIndex] = useState(start.allDone ? phases.length : start.phaseIndex);
   const [problemIndex, setProblemIndex] = useState(start.problemIndex);
   const [done, setDone] = useState(completed || resumeAllDone);
-  const [totalXp, setTotalXp] = useState(0);
   const [sectionMessage, setSectionMessage] = useState<string | null>(null);
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -248,13 +247,11 @@ export function MissionClient({
         workFeedback: message,
       };
     }
-    if (result.xpEarned) setTotalXp((x) => x + result.xpEarned);
     return {
       isCorrect: result.isCorrect,
       explanation: result.explanation,
       roast: result.roast,
       workFeedback: result.workFeedback,
-      workBonusXp: result.workBonusXp,
       placementChange: result.placementChange,
     };
   };
@@ -264,9 +261,7 @@ export function MissionClient({
       <Card className="text-center space-y-4">
         <p className="text-5xl">🎉</p>
         <CardTitle className="text-2xl">Mission Complete!</CardTitle>
-        <p className="text-slate-500">
-          You finished all sections for today. {totalXp > 0 ? `You earned ${totalXp} XP!` : "Great work!"}
-        </p>
+        <p className="text-slate-500">Great work!</p>
         <Button size="lg" onClick={() => router.push("/student")}>
           Back to Dashboard
         </Button>
@@ -302,7 +297,7 @@ export function MissionClient({
       </div>
       <ProgressBar value={progress} />
       <p className="text-sm text-slate-500">
-        Problem {completedBefore + 1} of {totalProblems} · {totalXp} XP earned
+        Problem {completedBefore + 1} of {totalProblems}
       </p>
 
       <ProblemView
