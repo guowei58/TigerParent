@@ -43,6 +43,7 @@
     "db:seed-concepts": "tsx --env-file=.env scripts/seed-concepts.ts",
     "db:ingest-pdf": "tsx --env-file=.env scripts/ingest-pdf.ts --",
     "assets:upload": "tsx --env-file=.env scripts/upload-pdf-assets.ts",
+    "assets:sync-render": "powershell -File scripts/sync-pdf-assets-to-render.ps1",
     "test:pdf-parsing": "tsx src/lib/pdf/__tests__/parsing.test.ts",
     "postinstall": "prisma generate"
   },

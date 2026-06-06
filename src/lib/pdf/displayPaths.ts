@@ -1,5 +1,5 @@
 import { publicPathFromData, toDataRelativePath } from "@/lib/storage/dataPaths";
-import { pdfAssetsPublicBaseUrl } from "@/lib/storage/r2Config";
+import { pdfAssetsPublicBaseUrl } from "@/lib/storage/objectStorage";
 
 export function assetUrl(
   storedPath: string | null | undefined,
