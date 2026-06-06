@@ -32,7 +32,11 @@ export async function GET(
         ? "audio/wav"
         : recording.mimeType.includes("webm")
           ? "audio/webm"
-          : recording.mimeType || "audio/wav",
+          : recording.mimeType.includes("mp4") ||
+              recording.mimeType.includes("m4a") ||
+              recording.mimeType.includes("aac")
+            ? "audio/mp4"
+            : recording.mimeType || "audio/mp4",
       "Content-Length": String(buf.length),
       "Accept-Ranges": "bytes",
       "Cache-Control": "private, no-cache",

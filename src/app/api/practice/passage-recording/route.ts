@@ -99,12 +99,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Passage not found" }, { status: 404 });
   }
 
-  const mimeType = audio.type?.includes("wav")
+  const rawType = (audio.type || "").toLowerCase();
+  const mimeType = rawType.includes("wav")
     ? "audio/wav"
-    : (audio.type || "audio/webm").split(";")[0]!.trim() || "audio/webm";
+    : rawType.includes("mp4") || rawType.includes("m4a") || rawType.includes("aac")
+      ? "audio/mp4"
+      : (audio.type || "audio/webm").split(";")[0]!.trim() || "audio/webm";
   const buffer = Buffer.from(await audio.arrayBuffer());
 
-  if (buffer.length < 8000) {
+  const minBytes =
+    mimeType.includes("mp4") || mimeType.includes("m4a") ? 1000 : 8000;
+  if (buffer.length < minBytes) {
     return NextResponse.json(
       {
         error:

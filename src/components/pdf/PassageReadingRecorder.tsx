@@ -5,6 +5,17 @@ import { Mic, Square } from "lucide-react";
 import { PassageRecordingAudio } from "@/components/pdf/PassageRecordingAudio";
 import { Button } from "@/components/ui/Button";
 import { peakAmplitudeFromBlob } from "@/lib/audio/analyzeAudio";
+import {
+  isIOSDevice,
+  micAccessErrorMessage,
+  noAudioCapturedMessage,
+  noVoiceDetectedMessage,
+  pickMediaRecorderMimeType,
+  recordingBlobType,
+  recordingFileName,
+  recordingTimesliceMs,
+  waitForRecorderStop,
+} from "@/lib/audio/recordingSupport";
 import { formatRecordingDuration } from "@/lib/passage-recording";
 import { cn } from "@/lib/utils";
 
@@ -23,19 +34,6 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
-function pickMediaRecorderMimeType(): string | null {
-  if (typeof MediaRecorder === "undefined") return null;
-  for (const type of [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/ogg;codecs=opus",
-    "audio/mp4",
-  ]) {
-    if (MediaRecorder.isTypeSupported(type)) return type;
-  }
-  return null;
-}
-
 function rmsFromAnalyser(analyser: AnalyserNode): number {
   const data = new Uint8Array(analyser.fftSize);
   analyser.getByteTimeDomainData(data);
@@ -45,6 +43,17 @@ function rmsFromAnalyser(analyser: AnalyserNode): number {
     sum += v * v;
   }
   return Math.sqrt(sum / data.length);
+}
+
+function createMediaRecorder(stream: MediaStream, preferredMime: string | null): MediaRecorder {
+  if (preferredMime) {
+    try {
+      return new MediaRecorder(stream, { mimeType: preferredMime });
+    } catch {
+      /* fall through */
+    }
+  }
+  return new MediaRecorder(stream);
 }
 
 export function PassageReadingRecorder({ passageId }: { passageId: string }) {
@@ -59,6 +68,7 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
   const [micLevel, setMicLevel] = useState(0);
   const [micDevices, setMicDevices] = useState<MicDevice[]>([]);
   const [selectedMicId, setSelectedMicId] = useState("");
+  const isIOS = isIOSDevice();
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -89,10 +99,10 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
   }, []);
 
   const refreshMicDevices = useCallback(async () => {
-    if (!navigator.mediaDevices?.enumerateDevices) return;
+    if (isIOS || !navigator.mediaDevices?.enumerateDevices) return;
     const devices = await navigator.mediaDevices.enumerateDevices();
     const mics = devices
-      .filter((d) => d.kind === "audioinput")
+      .filter((d) => d.kind === "audioinput" && d.deviceId)
       .map((d, i) => ({
         deviceId: d.deviceId,
         label: d.label || `Microphone ${i + 1}`,
@@ -101,7 +111,7 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
     if (mics.length > 0 && !selectedMicId) {
       setSelectedMicId(mics[0]!.deviceId);
     }
-  }, [selectedMicId]);
+  }, [isIOS, selectedMicId]);
 
   const loadSaved = useCallback(async () => {
     const res = await fetch(
@@ -116,7 +126,7 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
     }
 
     const bytes = data.recording.fileBytes ?? 0;
-    if (bytes < 8000) {
+    if (bytes < 2000) {
       setSaved(null);
       setPlaybackError("Previous recording was broken — please record again.");
       return;
@@ -177,52 +187,64 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
       return;
     }
 
-    const mimeType = pickMediaRecorderMimeType();
-    if (!mimeType) {
+    const preferredMime = pickMediaRecorderMimeType();
+    if (!preferredMime && typeof MediaRecorder === "undefined") {
       setError("This browser cannot record audio.");
       return;
     }
-    mimeTypeRef.current = mimeType;
 
     try {
-      const audioConstraints: MediaTrackConstraints = {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: true,
-      };
-      if (selectedMicId) {
-        audioConstraints.deviceId = { exact: selectedMicId };
+      let stream: MediaStream;
+      if (isIOS) {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } else {
+        const audioConstraints: MediaTrackConstraints = {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        };
+        if (selectedMicId) {
+          audioConstraints.deviceId = { ideal: selectedMicId };
+        }
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-      });
       streamRef.current = stream;
       await refreshMicDevices();
 
-      const meterContext = new AudioContext();
-      await meterContext.resume();
-      meterContextRef.current = meterContext;
-      const source = meterContext.createMediaStreamSource(stream);
-      const analyser = meterContext.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-      analyserRef.current = analyser;
+      // Level meter only on desktop — parallel AudioContext can break iOS capture.
+      if (!isIOS) {
+        const meterContext = new AudioContext();
+        await meterContext.resume();
+        meterContextRef.current = meterContext;
+        const source = meterContext.createMediaStreamSource(stream);
+        const analyser = meterContext.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        analyserRef.current = analyser;
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+        levelTimerRef.current = setInterval(() => {
+          if (!analyserRef.current) return;
+          const rms = rmsFromAnalyser(analyserRef.current);
+          maxLevelRef.current = Math.max(maxLevelRef.current, rms);
+          setMicLevel(rms);
+        }, 80);
+      }
+
+      const recorder = createMediaRecorder(stream, preferredMime);
+      mimeTypeRef.current = recorder.mimeType || preferredMime || "audio/mp4";
       chunksRef.current = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorderRef.current = recorder;
-      recorder.start();
 
-      levelTimerRef.current = setInterval(() => {
-        if (!analyserRef.current) return;
-        const rms = rmsFromAnalyser(analyserRef.current);
-        maxLevelRef.current = Math.max(maxLevelRef.current, rms);
-        setMicLevel(rms);
-      }, 80);
+      const timeslice = recordingTimesliceMs();
+      if (timeslice != null) {
+        recorder.start(timeslice);
+      } else {
+        recorder.start();
+      }
 
       startedAtRef.current = Date.now();
       setElapsed(0);
@@ -232,9 +254,7 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
       setRecording(true);
     } catch {
       cleanupCapture();
-      setError(
-        "Could not access the microphone. Allow mic access and pick the correct device below.",
-      );
+      setError(micAccessErrorMessage());
     }
   }
 
@@ -261,16 +281,7 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
 
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") {
-      await new Promise<void>((resolve) => {
-        recorder.addEventListener("stop", () => resolve(), { once: true });
-        try {
-          recorder.requestData();
-        } catch {
-          /* ignore */
-        }
-        recorder.stop();
-      });
-      await new Promise((r) => setTimeout(r, 150));
+      await waitForRecorderStop(recorder);
     }
 
     const chunks = [...chunksRef.current];
@@ -278,30 +289,29 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
     cleanupCapture();
 
     if (chunks.length === 0) {
-      setError("No audio captured. Try a different microphone from the list below.");
+      setError(noAudioCapturedMessage());
       return;
     }
 
-    const blob = new Blob(chunks, {
-      type: mimeTypeRef.current.split(";")[0] || "audio/webm",
-    });
-    const ext = blob.type.includes("mp4") ? "reading.m4a" : "reading.webm";
-    const minBytes = Math.max(2000, durationSeconds * 400);
+    const blobType = recordingBlobType(mimeTypeRef.current);
+    const blob = new Blob(chunks, { type: blobType });
+    const ext = recordingFileName(mimeTypeRef.current);
+    const minBytes = isIOS ? 1000 : Math.max(2000, durationSeconds * 400);
 
     if (blob.size < minBytes) {
       setError(
-        `Recording failed (${formatBytes(blob.size)}). Pick a different mic, speak louder, and record at least 5 seconds.`,
+        `Recording failed (${formatBytes(blob.size)}). Speak louder, hold the phone normally, and record at least 5 seconds.`,
       );
       return;
     }
 
     const peak = await peakAmplitudeFromBlob(blob);
-    if (peak < 0.002 && maxLevelRef.current < 0.003) {
-      setError(
-        "No voice detected. Choose a different microphone below, check Windows Sound settings, then try again.",
-      );
+    const heardVoice = peak >= 0.002 || maxLevelRef.current >= 0.003;
+    if (!heardVoice && !isIOS) {
+      setError(noVoiceDetectedMessage());
       return;
     }
+    // On iOS, skip amplitude decode check — m4a decode can fail even when valid.
 
     setLastBlobBytes(blob.size);
     setPlaybackFromBlob(blob);
@@ -336,7 +346,6 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
 
       setSaved({ ...savedRecording, fileBytes: blob.size });
       setLastBlobBytes(blob.size);
-      // Keep the local blob for playback — it already passed validation.
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save recording.");
     } finally {
@@ -354,10 +363,12 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
     <div className="rounded-2xl border border-violet-200 bg-violet-50/80 p-4">
       <p className="text-sm font-semibold text-violet-900">Read the passage aloud</p>
       <p className="mt-1 text-xs text-violet-800/80 leading-relaxed">
-        Pick your microphone, record at least 5 seconds of reading, then tap Stop.
+        {isIOS
+          ? "Tap Start, read for at least 5 seconds, then tap Stop. Allow microphone access when Safari asks."
+          : "Pick your microphone, record at least 5 seconds of reading, then tap Stop."}
       </p>
 
-      {micDevices.length > 0 && !recording && (
+      {micDevices.length > 1 && !recording && (
         <label className="mt-3 block">
           <span className="mb-1 block text-xs font-medium text-violet-900">Microphone</span>
           <select
@@ -413,20 +424,23 @@ export function PassageReadingRecorder({ passageId }: { passageId: string }) {
       {recording && (
         <div className="mt-3 space-y-2">
           <p className={cn("text-xs font-medium text-rose-600 animate-pulse")}>
-            Recording… speak now. The mic bar should move when you talk.
+            Recording… speak now.
+            {!isIOS && " The mic bar should move when you talk."}
           </p>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wide text-violet-700">Mic</span>
-            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-violet-200">
-              <div
-                className="h-full rounded-full bg-violet-600 transition-[width] duration-75"
-                style={{ width: `${Math.max(levelPct, 2)}%` }}
-              />
+          {!isIOS && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wide text-violet-700">Mic</span>
+              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-violet-200">
+                <div
+                  className="h-full rounded-full bg-violet-600 transition-[width] duration-75"
+                  style={{ width: `${Math.max(levelPct, 2)}%` }}
+                />
+              </div>
+              {levelPct < 5 && (
+                <span className="text-[10px] text-amber-700 shrink-0">No input</span>
+              )}
             </div>
-            {levelPct < 5 && (
-              <span className="text-[10px] text-amber-700 shrink-0">No input</span>
-            )}
-          </div>
+          )}
         </div>
       )}
 
