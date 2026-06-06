@@ -145,7 +145,10 @@ export async function ensureAiAnswerKeyForProblem(problem: {
     gradeLevel: problem.gradeLevel ?? 5,
     subject: problem.subject ?? "math",
     conceptName: problem.subtopic ?? undefined,
-    problemImagePath: problemDisplayImagePath(problem),
+    problemImagePath: problemDisplayImagePath({
+      problemImagePath: problem.problemImagePath ?? null,
+      fullPageImagePath: problem.fullPageImagePath ?? null,
+    }),
     passageText: problem.passageText,
   });
 

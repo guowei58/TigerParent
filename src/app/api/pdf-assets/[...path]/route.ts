@@ -2,7 +2,11 @@ import { GetObjectCommand } from "@aws-sdk/client-s3";
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { createR2Client, r2BucketName, r2Configured } from "@/lib/storage/r2Config";
+import {
+  createObjectStorageClient,
+  objectStorageBucketName,
+  objectStorageConfigured,
+} from "@/lib/storage/objectStorage";
 import { resolveDataPath } from "@/lib/storage/fileStorage";
 
 const ROOT = path.join(process.cwd(), "data").replace(/\\/g, "/");
@@ -15,10 +19,10 @@ function contentTypeForExt(ext: string): string {
 }
 
 async function readFromR2(key: string): Promise<{ body: Buffer; contentType: string } | null> {
-  if (!r2Configured()) return null;
+  if (!objectStorageConfigured()) return null;
   try {
-    const response = await createR2Client().send(
-      new GetObjectCommand({ Bucket: r2BucketName(), Key: key }),
+    const response = await createObjectStorageClient().send(
+      new GetObjectCommand({ Bucket: objectStorageBucketName(), Key: key }),
     );
     if (!response.Body) return null;
     const bytes = await response.Body.transformToByteArray();
@@ -48,7 +52,7 @@ export async function GET(
     const buf = fs.readFileSync(filePath);
     const ext = path.extname(filePath).toLowerCase();
     const etag = `"${stat.mtimeMs}-${stat.size}"`;
-    return new NextResponse(buf, {
+    return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": contentTypeForExt(ext),
         "Cache-Control": "public, max-age=86400, must-revalidate",
@@ -59,7 +63,7 @@ export async function GET(
 
   const remote = await readFromR2(key);
   if (remote) {
-    return new NextResponse(remote.body, {
+    return new NextResponse(new Uint8Array(remote.body), {
       headers: {
         "Content-Type": remote.contentType,
         "Cache-Control": "public, max-age=86400, must-revalidate",
