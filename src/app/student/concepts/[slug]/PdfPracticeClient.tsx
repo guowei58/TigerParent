@@ -16,6 +16,7 @@ import { Scratchpad, type Stroke } from "@/components/Scratchpad";
 import { Button } from "@/components/ui/Button";
 import { OpenResponseRevealPanel } from "@/components/pdf/OpenResponseRevealPanel";
 import { FormattedExplanation } from "@/components/pdf/FormattedExplanation";
+import { ProblemImageWithZoom } from "@/components/pdf/ProblemImageWithZoom";
 import { PdfPassagePanel, type PdfPassageView } from "@/components/pdf/PdfPassagePanel";
 import { PassageReadingRecorder } from "@/components/pdf/PassageReadingRecorder";
 import {
@@ -556,13 +557,12 @@ export function PdfPracticeClient({
         )}
       </div>
       {elaUseQuestionImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <ProblemImageWithZoom
           key={img!}
-          ref={imgRef}
           src={img!}
           alt="Practice question"
-          className="block h-auto w-full max-h-[min(70vh,640px)] object-contain object-top rounded-xl border border-slate-100"
+          imgRef={imgRef}
+          imgClassName="block h-auto w-full max-h-[min(70vh,640px)] object-contain object-left-top rounded-xl border border-slate-100"
           onLoad={() => setAnswerReady(true)}
         />
       ) : (
@@ -644,13 +644,12 @@ export function PdfPracticeClient({
       ) : reviewingCompletedProblem ? (
         <div className="w-fit max-w-full">
           {img ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <ProblemImageWithZoom
               key={img}
-              ref={imgRef}
               src={img}
               alt="Practice question"
-              className="block h-auto w-auto max-w-full max-h-[min(62vh,560px)] object-contain rounded-xl border border-slate-200 bg-white shadow-sm"
+              imgRef={imgRef}
+              imgClassName="block h-auto w-auto max-w-full max-h-[min(62vh,560px)] object-contain object-left-top rounded-xl border border-slate-200 bg-white shadow-sm"
               onLoad={() => setAnswerReady(true)}
             />
           ) : (
@@ -659,27 +658,22 @@ export function PdfPracticeClient({
         </div>
       ) : showProblemAndScratch ? (
         <div className="grid gap-3 md:grid-cols-[auto_minmax(0,1fr)] md:grid-rows-[auto_1fr] md:items-start">
-          <div
-            className={cn(
-              "order-1 md:col-start-1 md:row-start-2",
-              "mx-auto md:mx-0",
-              "h-[min(62vh,560px)] w-fit max-w-full overflow-hidden",
-            )}
-          >
-            {img ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={img}
-                ref={imgRef}
-                src={img}
-                alt="Practice question"
-                className="block h-full w-auto max-w-full rounded-xl border border-slate-200 bg-white shadow-sm object-contain object-top"
-                onLoad={() => setAnswerReady(true)}
-              />
-            ) : (
-              <p className="text-slate-500 text-sm">No problem image.</p>
-            )}
-          </div>
+          {img ? (
+            <ProblemImageWithZoom
+              key={img}
+              src={img}
+              alt="Practice question"
+              imgRef={imgRef}
+              className="order-1 md:col-start-1 md:row-start-2 mx-auto md:mx-0"
+              boxClassName="h-[min(62vh,560px)] w-fit max-w-full"
+              imgClassName="block h-full w-auto max-w-full rounded-xl border border-slate-200 bg-white shadow-sm object-contain object-left-top"
+              onLoad={() => setAnswerReady(true)}
+            />
+          ) : (
+            <p className="order-1 md:col-start-1 md:row-start-2 text-slate-500 text-sm mx-auto md:mx-0">
+              No problem image.
+            </p>
+          )}
 
           <p className="order-2 text-sm font-semibold text-slate-800 md:col-start-2 md:row-start-1 md:order-none">
             Scratch work
