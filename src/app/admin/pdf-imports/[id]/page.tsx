@@ -7,6 +7,7 @@ import { AdminNav } from "@/components/layouts/AdminNav";
 import { buildApproveCheckInput, canApprovePdfProblem } from "@/lib/pdf/approveProblem";
 import { assetUrl, problemDisplayImagePath, elaQuestionDisplayImagePath } from "@/lib/pdf/displayPaths";
 import { PdfImportApproveAllButton } from "./PdfImportApproveAllButton";
+import { PdfImportApproveLikelyCorrectButton } from "./PdfImportApproveLikelyCorrectButton";
 import { PdfProblemApprovalButton } from "./PdfProblemApprovalButton";
 import { PdfProblemReexamineButton } from "./PdfProblemReexamineButton";
 import { PdfProblemDeleteButton } from "./PdfProblemDeleteButton";
@@ -20,6 +21,8 @@ import { RetryIngestionButton } from "./RetryIngestionButton";
 import { PdfPassagePanel } from "@/components/pdf/PdfPassagePanel";
 import { passageViewFromDb } from "@/lib/pdf/passageView";
 import { elaQuestionStem } from "@/lib/pdf/elaDisplay";
+import { parseReexamineReviewTier } from "@/lib/pdf/reexamineReviewTier";
+import { ReexamineTierBadge } from "./ReexamineBulkSummary";
 
 const TERMINAL_INGESTION = new Set(["needs_review", "completed", "failed"]);
 
@@ -64,6 +67,13 @@ export default async function PdfImportDetailPage({
         buildApproveCheckInput(p, keyByNumber.get(p.problemNumber) ?? null),
       ),
   ).length;
+  const approvableLikelyCorrect = doc.problems.filter((p) => {
+    if (p.approvedForStudentUse) return false;
+    if (parseReexamineReviewTier(p.parseWarnings).tier !== "confident") return false;
+    return canApprovePdfProblem(
+      buildApproveCheckInput(p, keyByNumber.get(p.problemNumber) ?? null),
+    );
+  }).length;
   const ingestionInProgress = job
     ? !TERMINAL_INGESTION.has(job.status)
     : doc.importStatus !== "needs_review" && doc.importStatus !== "failed";
@@ -87,15 +97,19 @@ export default async function PdfImportDetailPage({
               {doc.pageCount} pages · {doc.problems.length} problems · {doc.answerKey.length} answer
               key entries · {approved} approved · Status: {job?.status ?? doc.importStatus}
             </p>
-            <PdfImportReexamineAllButton
-              problems={doc.problems.map((p) => ({
-                id: p.id,
-                problemNumber: p.problemNumber,
-                approvedForStudentUse: p.approvedForStudentUse,
-              }))}
+            <PdfImportApproveLikelyCorrectButton
+              documentId={doc.id}
+              likelyCorrectCount={approvableLikelyCorrect}
             />
             <PdfImportApproveAllButton documentId={doc.id} pendingCount={approvablePending} />
           </div>
+          <PdfImportReexamineAllButton
+            problems={doc.problems.map((p) => ({
+              id: p.id,
+              problemNumber: p.problemNumber,
+              approvedForStudentUse: p.approvedForStudentUse,
+            }))}
+          />
           {pendingApproval > approvablePending && (
             <p className="text-amber-700 text-xs mt-1">
               {pendingApproval - approvablePending} pending problem
@@ -152,18 +166,33 @@ export default async function PdfImportDetailPage({
         <PdfImportProblemsTable
           problems={doc.problems.map((p) => {
             const key = doc.answerKey.find((k) => k.problemNumber === p.problemNumber);
+            const reexamine = parseReexamineReviewTier(p.parseWarnings);
             return {
               id: p.id,
               problemNumber: p.problemNumber,
               questionType: p.questionType,
               approvedForStudentUse: p.approvedForStudentUse,
               answerLabel: key?.correctChoiceLabel ?? key?.correctAnswerText ?? null,
+              reexamineTier: reexamine.tier,
+              reexamineReason: reexamine.reason,
             };
           })}
         />
 
         <div className="space-y-6">
-          {doc.problems.map((p) => {
+          {[...doc.problems]
+            .sort((a, b) => {
+              const rank = (tier: ReturnType<typeof parseReexamineReviewTier>["tier"]) => {
+                if (tier === "questionable") return 0;
+                if (tier === "confident") return 1;
+                return 2;
+              };
+              const diff =
+                rank(parseReexamineReviewTier(a.parseWarnings).tier) -
+                rank(parseReexamineReviewTier(b.parseWarnings).tier);
+              return diff !== 0 ? diff : a.problemNumber - b.problemNumber;
+            })
+            .map((p) => {
             const key = doc.answerKey.find((k) => k.problemNumber === p.problemNumber);
             const img = assetUrl(problemDisplayImagePath(p), p.updatedAt.getTime());
             const isEla = Boolean(p.passageId || p.passage);
@@ -172,13 +201,23 @@ export default async function PdfImportDetailPage({
             const elaQuestionImage = isEla
               ? assetUrl(elaQuestionDisplayImagePath(p), p.updatedAt.getTime())
               : null;
+            const reexamine = parseReexamineReviewTier(p.parseWarnings);
+            const visibleWarnings = ((p.parseWarnings as string[] | null) ?? []).filter(
+              (w) => !String(w).startsWith("reexamine-tier:"),
+            );
             return (
               <div key={p.id} className="bg-white rounded-2xl border p-4 grid md:grid-cols-2 gap-4">
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-2">
-                    <p className="text-xs text-slate-500">
-                      #{p.problemNumber} · {p.questionType}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-slate-500">
+                        #{p.problemNumber} · {p.questionType}
+                      </p>
+                      <ReexamineTierBadge
+                        tier={reexamine.tier}
+                        reason={reexamine.reason}
+                      />
+                    </div>
                     <PdfProblemDeleteButton problemId={p.id} problemNumber={p.problemNumber} />
                   </div>
                   {isEla && passageView ? (
@@ -228,7 +267,7 @@ export default async function PdfImportDetailPage({
                     </div>
                   )}
                   <ul className="text-xs">
-                    {(p.parseWarnings as string[] | null)?.map((w, i) => (
+                    {visibleWarnings.map((w, i) => (
                       <li key={`${i}-${w}`} className="text-amber-700">
                         {w}
                       </li>

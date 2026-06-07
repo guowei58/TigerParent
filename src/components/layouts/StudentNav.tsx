@@ -6,12 +6,14 @@ import { cn } from "@/lib/utils";
 import {
   Home,
   LogOut,
+  MessageCircle,
   Settings,
   Users,
   Trophy,
   Target,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { useStudentChat } from "@/components/chat/StudentChatContext";
 
 const links = [
   { href: "/student", label: "Home", icon: Home },
@@ -28,6 +30,7 @@ function isActive(pathname: string, href: string) {
 
 export function StudentNav({ displayName }: { displayName: string }) {
   const pathname = usePathname();
+  const { isOpen, toggle, hasUnread } = useStudentChat();
 
   return (
     <nav className="sticky top-0 z-40 border-b border-indigo-200/30 bg-gradient-to-r from-indigo-600 to-violet-600 pt-[env(safe-area-inset-top,0px)] text-white">
@@ -42,6 +45,27 @@ export function StudentNav({ displayName }: { displayName: string }) {
         </p>
 
         <div className="student-nav-scroll flex min-w-0 flex-1 items-center justify-end gap-0.5 overflow-x-auto">
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={hasUnread ? "Open chat (new messages)" : "Open chat"}
+            aria-pressed={isOpen}
+            className={cn(
+              "relative flex shrink-0 items-center gap-1 rounded-xl px-2.5 py-2 text-[11px] font-semibold touch-manipulation md:gap-1.5 md:px-3 md:text-xs",
+              isOpen
+                ? "bg-white text-indigo-700 shadow-sm"
+                : "bg-white/20 hover:bg-white/30",
+            )}
+          >
+            <MessageCircle className="h-4 w-4 shrink-0" />
+            <span className="whitespace-nowrap">Chat</span>
+            {hasUnread && !isOpen && (
+              <span
+                className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-indigo-600 animate-pulse"
+                aria-hidden
+              />
+            )}
+          </button>
           {links.map(({ href, label, icon: Icon }) => {
             const active = isActive(pathname, href);
             return (

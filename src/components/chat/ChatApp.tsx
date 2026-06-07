@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { gradeLabel } from "@/lib/utils";
@@ -79,6 +79,13 @@ export function ChatApp({
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollMessagesToBottom = useCallback(() => {
+    const el = messagesScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, []);
 
   const refreshStudentDirectory = useCallback(async () => {
     const res = await fetch("/api/student/students/search");
@@ -158,10 +165,18 @@ export function ChatApp({
           }
           return merged;
         });
+        onActivity?.();
       }
     },
-    [],
+    [onActivity],
   );
+
+  useEffect(() => {
+    if (!embedded || activeConversationId) return;
+    void refreshConversations();
+    const interval = setInterval(refreshConversations, 4000);
+    return () => clearInterval(interval);
+  }, [embedded, activeConversationId, refreshConversations]);
 
   const openConversation = async (conversationId: string) => {
     setActiveConversationId(conversationId);
@@ -281,6 +296,11 @@ export function ChatApp({
     return () => clearInterval(interval);
   }, [activeConversationId, loadMessages, messages]);
 
+  useLayoutEffect(() => {
+    if (!activeConversationId || messages.length === 0) return;
+    scrollMessagesToBottom();
+  }, [activeConversationId, messages, scrollMessagesToBottom]);
+
   if (activeConversationId) {
     return (
       <div
@@ -304,7 +324,10 @@ export function ChatApp({
           <h2 className="font-bold text-lg truncate">{conversationTitle}</h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto rounded-2xl bg-white/90 border border-slate-200 p-3 space-y-2">
+        <div
+          ref={messagesScrollRef}
+          className="flex-1 overflow-y-auto rounded-2xl bg-white/90 border border-slate-200 p-3 space-y-2"
+        >
           {messages.length === 0 ? (
             <p className="text-slate-500 text-sm text-center py-8">
               Say hello! 👋
@@ -495,7 +518,7 @@ export function ChatApp({
                     )}
                   </div>
                   {c.unread && (
-                    <span className="shrink-0 h-2.5 w-2.5 rounded-full bg-indigo-500" />
+                    <span className="shrink-0 h-2.5 w-2.5 rounded-full bg-rose-500" />
                   )}
                 </div>
               </button>

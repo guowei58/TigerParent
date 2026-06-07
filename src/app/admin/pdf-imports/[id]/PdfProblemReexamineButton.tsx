@@ -9,7 +9,7 @@ export function PdfProblemReexamineButton({ problemId }: { problemId: string }) 
 
   async function reexamine() {
     const ok = window.confirm(
-      "Re-parse the answer from the original PDF and regenerate the AI explanation? The problem will be unapproved until you review it again.",
+      "Re-run this problem through ChatGPT and Claude, compare their answers, and regenerate the explanation? The problem will be unapproved until you review it again.",
     );
     if (!ok) return;
 
@@ -25,7 +25,9 @@ export function PdfProblemReexamineButton({ problemId }: { problemId: string }) 
       return;
     }
 
-    alert(data.message ?? "Done.");
+    alert(
+      `${data.reviewTier === "confident" ? "Likely correct" : "Needs review"}: ${data.message ?? "Done."}`,
+    );
     router.refresh();
   }
 

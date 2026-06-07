@@ -9,6 +9,7 @@ import {
 } from "@/lib/analytics";
 import { formatRecordingDuration } from "@/lib/passage-recording";
 import type { DailyPassageRecording } from "@/lib/passage-recording";
+import { gradeLabel } from "@/lib/utils";
 
 function recordingCacheKey(recordedAt: Date | string): string {
   return typeof recordedAt === "string" ? recordedAt : recordedAt.toISOString();
@@ -50,7 +51,12 @@ export function ParentPdfAttemptCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold text-slate-900">{attempt.topicTitle}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{attempt.subjectLabel}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {attempt.subjectLabel}
+            {attempt.gradeLevel != null && (
+              <span> · {gradeLabel(attempt.gradeLevel)}</span>
+            )}
+          </p>
         </div>
         <span
           className={

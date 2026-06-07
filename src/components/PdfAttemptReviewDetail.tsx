@@ -4,6 +4,7 @@ import { StrokeViewer } from "@/components/StrokeViewer";
 import { WorkQualityBadge } from "@/components/WorkQualityBadge";
 import type { WorkQuality } from "@/lib/stroke-analysis";
 import { PDF_PRACTICE_REQUIRES_SCRATCHPAD } from "@/lib/pdf-practice/attempt-strokes";
+import { gradeLabel } from "@/lib/utils";
 
 type PdfAttemptDetail = {
   id: string;
@@ -15,6 +16,7 @@ type PdfAttemptDetail = {
   timeSpentSeconds: number | null;
   topicTitle: string;
   subjectLabel: string;
+  gradeLevel: number | null;
   imageUrl: string | null;
   strokes: { strokeDataJson: unknown; drawingSeconds: number | null } | null;
   workQuality: WorkQuality;
@@ -41,7 +43,12 @@ export function PdfAttemptReviewDetail({ attempt }: { attempt: PdfAttemptDetail 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle>{attempt.topicTitle}</CardTitle>
-            <p className="text-sm text-slate-500 mt-1">{attempt.subjectLabel}</p>
+            <p className="text-sm text-slate-500 mt-1">
+              {attempt.subjectLabel}
+              {attempt.gradeLevel != null && (
+                <span> · {gradeLabel(attempt.gradeLevel)}</span>
+              )}
+            </p>
             <p className="text-xs text-slate-400 mt-1">
               {attempt.createdAt.toLocaleString()}
               {attempt.timeSpentSeconds != null

@@ -10,6 +10,7 @@ import {
 
 type StudentChatContextValue = {
   isOpen: boolean;
+  hasUnread: boolean;
   unreadCount: number;
   open: () => void;
   close: () => void;
@@ -19,6 +20,7 @@ type StudentChatContextValue = {
 
 const StudentChatContext = createContext<StudentChatContextValue>({
   isOpen: false,
+  hasUnread: false,
   unreadCount: 0,
   open: () => {},
   close: () => {},
@@ -49,19 +51,35 @@ export function StudentChatProvider({
 
   useEffect(() => {
     if (!enabled) return;
-    refreshUnread();
-    const interval = setInterval(refreshUnread, isOpen ? 8000 : 20000);
+    void refreshUnread();
+    const intervalMs = isOpen ? 5000 : 4000;
+    const interval = setInterval(refreshUnread, intervalMs);
     return () => clearInterval(interval);
   }, [enabled, isOpen, refreshUnread]);
 
-  const open = useCallback(() => setIsOpen(true), []);
-  const close = useCallback(() => setIsOpen(false), []);
-  const toggle = useCallback(() => setIsOpen((v) => !v), []);
+  const open = useCallback(() => {
+    setIsOpen(true);
+    void refreshUnread();
+  }, [refreshUnread]);
+  const close = useCallback(() => {
+    setIsOpen(false);
+    void refreshUnread();
+  }, [refreshUnread]);
+  const toggle = useCallback(() => {
+    setIsOpen((v) => {
+      const next = !v;
+      if (next) void refreshUnread();
+      return next;
+    });
+  }, [refreshUnread]);
+
+  const hasUnread = unreadCount > 0;
 
   return (
     <StudentChatContext.Provider
       value={{
         isOpen: enabled && isOpen,
+        hasUnread,
         unreadCount,
         open: enabled ? open : () => {},
         close,

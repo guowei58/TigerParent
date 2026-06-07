@@ -261,6 +261,7 @@ export type DailyPdfWorkAttempt = {
   problemId: string;
   topicTitle: string;
   subjectLabel: string;
+  gradeLevel: number | null;
   topicSlug: string | null;
   imageUrl: string | null;
   passageId: string | null;
@@ -425,6 +426,7 @@ export async function getStudentDailyWork(
       problemId: row.problemId,
       topicTitle,
       subjectLabel,
+      gradeLevel: row.problem.gradeLevel ?? concept?.gradeLevel ?? null,
       topicSlug: concept?.slug ?? null,
       imageUrl: assetUrl(problemDisplayImagePath(row.problem)),
       passageId: row.problem.passageId,
@@ -745,6 +747,7 @@ export async function getStudentPdfAttemptDetail(
     showedWork: row.showedWork,
     topicTitle,
     subjectLabel,
+    gradeLevel: row.problem.gradeLevel ?? concept?.gradeLevel ?? null,
     topicSlug: concept?.slug ?? null,
     imageUrl: assetUrl(problemDisplayImagePath(row.problem)),
     strokes: row.strokes,

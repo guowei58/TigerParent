@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/db";
-import { generateProblemExplanationWithAi } from "@/lib/ai/generateProblemExplanation";
+import { resolveDualModelReexamineAnswer } from "@/lib/ai/dualModelReexamine";
+import {
+  classifyReexamineReviewTier,
+  mergeReexamineTierWarning,
+  type ReexamineReviewTier,
+} from "@/lib/pdf/reexamineReviewTier";
 import {
   detectProblemsOnePerPage,
   splitAnswerKeySection,
@@ -7,15 +12,12 @@ import {
 import { detectElaReadingProblems } from "@/lib/pdf/detectElaReading";
 import { extractPdfTextByPage } from "@/lib/pdf/extractPdfText";
 import {
-  ensureAiAnswerKeyForProblem,
   saveSolutionFromExplanation,
-  trustedAnswerKeyForAi,
+  upsertAiAnswerKeyEntry,
 } from "@/lib/pdf/aiAnswerKey";
-import { needsAiDerivedAnswerKey } from "@/lib/pdf/answerKeyRules";
 import { problemDisplayImagePath } from "@/lib/pdf/displayPaths";
 import { inferQuestionType } from "@/lib/pdf/inferQuestionType";
 import { parseAnswerKey } from "@/lib/pdf/parseAnswerKey";
-import { problemExplanationText } from "@/lib/pdf/problemExplanation";
 import { resolveDataPath } from "@/lib/storage/fileStorage";
 import type { PdfQuestionType } from "@/generated/prisma/client";
 
@@ -28,6 +30,11 @@ export type ReexamineProblemAnswerResult = {
   documentKeyFound: boolean;
   explanationGenerated: boolean;
   modelUsed: string;
+  dualModelResolution: string;
+  openaiAnswer: string | null;
+  claudeAnswer: string | null;
+  reviewTier: ReexamineReviewTier;
+  reviewReason: string;
   message: string;
 };
 
@@ -145,74 +152,55 @@ export async function reexamineProblemAnswer(
 
   const choiceRows = problem.choices.map((c) => ({ label: c.label, text: c.text }));
   const passageText = problem.passage?.bodyText ?? null;
-  const needsAi = needsAiDerivedAnswerKey(problem.questionType, choiceRows, key);
 
-  let modelUsed = "none";
-  let explanationGenerated = false;
+  const dualResult = await resolveDualModelReexamineAnswer({
+    cleanedText: problem.rawText ?? problem.cleanedText ?? "",
+    choices: choiceRows,
+    correctChoiceLabel: null,
+    correctAnswerText: null,
+    gradeLevel: problem.gradeLevel ?? doc.gradeLevel ?? 5,
+    subject: problem.subject ?? doc.subject ?? "math",
+    conceptName: problem.subtopic ?? undefined,
+    problemImagePath: problemDisplayImagePath(problem),
+    passageText,
+  });
 
-  if (needsAi) {
-    const aiResult = await ensureAiAnswerKeyForProblem({
-      id: problem.id,
-      sourceDocumentId: doc.id,
-      problemNumber: problem.problemNumber,
-      questionType: problem.questionType,
-      rawText: problem.rawText,
-      cleanedText: problem.cleanedText,
-      gradeLevel: problem.gradeLevel ?? doc.gradeLevel ?? 5,
-      subject: problem.subject ?? doc.subject ?? "math",
-      subtopic: problem.subtopic,
-      problemImagePath: problem.problemImagePath,
-      fullPageImagePath: problem.fullPageImagePath,
-      passageText,
-      choices: choiceRows,
-      key: key
-        ? {
-            id: key.id,
-            correctChoiceLabel: key.correctChoiceLabel,
-            correctAnswerText: key.correctAnswerText,
-            rawAnswerText: key.rawAnswerText,
-          }
-        : null,
-    });
-
-    key = await prisma.pdfAnswerKeyEntry.findUnique({
-      where: {
-        sourceDocumentId_problemNumber: {
-          sourceDocumentId: doc.id,
-          problemNumber: problem.problemNumber,
-        },
-      },
-    });
-    if (!documentKeyFound) keySource = "ai";
-    modelUsed = aiResult.action === "updated" ? aiResult.modelUsed : "skipped";
-    explanationGenerated = aiResult.action === "updated";
-  } else {
-    if (!key) {
-      throw new Error(
-        `No answer key found in document for problem #${problem.problemNumber} and no existing key to use.`,
-      );
-    }
-
-    const trusted = trustedAnswerKeyForAi(key, false);
-    const expl = await generateProblemExplanationWithAi({
-      cleanedText: problem.rawText ?? problem.cleanedText ?? "",
-      choices: choiceRows,
-      correctChoiceLabel: trusted.correctChoiceLabel,
-      correctAnswerText: trusted.correctAnswerText,
-      gradeLevel: problem.gradeLevel ?? doc.gradeLevel ?? 5,
-      subject: problem.subject ?? doc.subject ?? "english",
-      conceptName: problem.subtopic ?? undefined,
-      problemImagePath: problemDisplayImagePath(problem),
-      passageText,
-    });
-
-    await saveSolutionFromExplanation(problem.id, key.id, expl, key, false);
-    modelUsed = expl.modelUsed;
-    explanationGenerated = Boolean(problemExplanationText(expl));
+  const answerText = dualResult.correctAnswerText.trim();
+  if (!answerText || answerText.toLowerCase() === "unknown") {
+    throw new Error(`Dual-model reexamine returned no usable answer for problem #${problem.problemNumber}`);
   }
 
+  const openResponse = problem.questionType === "open_response";
+  const choiceLabel =
+    openResponse ||
+    !dualResult.correctChoiceLabel ||
+    !/^[A-D]$/i.test(dualResult.correctChoiceLabel.trim())
+      ? null
+      : dualResult.correctChoiceLabel.trim().toUpperCase();
+
+  key = await upsertAiAnswerKeyEntry(doc.id, problem.problemNumber, {
+    correctChoiceLabel: choiceLabel,
+    correctAnswerText: answerText,
+    confidence: dualResult.confidence,
+  });
+  keySource = "ai";
+
+  await saveSolutionFromExplanation(problem.id, key.id, dualResult, key, true);
+
+  const modelUsed = dualResult.modelUsed;
+  const explanationGenerated = true;
+  const dualModelResolution = dualResult.resolution;
+  const openaiAnswer = dualResult.openaiAnswer;
+  const claudeAnswer = dualResult.claudeAnswer;
   const answer = formatAnswer(key);
   const answerChanged = previousAnswer !== answer;
+  const { tier: reviewTier, reason: reviewReason } = classifyReexamineReviewTier({
+    resolution: dualResult.resolution,
+    confidence: dualResult.confidence,
+    answerChanged,
+    documentKeyFound,
+    claudeUnavailableReason: dualResult.claudeUnavailableReason,
+  });
 
   const questionType = inferQuestionType({
     rawText: problem.rawText ?? "",
@@ -229,18 +217,26 @@ export async function reexamineProblemAnswer(
       answerKeyConfidence: key?.extractionConfidence ?? problem.answerKeyConfidence,
       approvedForStudentUse: false,
       reviewStatus: "needs_review",
+      parseWarnings: mergeReexamineTierWarning(problem.parseWarnings, reviewTier, reviewReason),
     },
   });
 
   let message: string;
+  const resolutionNote =
+    dualModelResolution === "consensus"
+      ? "ChatGPT and Claude agreed."
+      : dualModelResolution === "arbitrated"
+        ? `ChatGPT (${openaiAnswer}) and Claude (${claudeAnswer}) disagreed — arbitrated to ${answer}.`
+        : dualModelResolution === "openai-only"
+          ? "Only ChatGPT available (Claude unavailable)."
+          : "Only Claude available (ChatGPT unavailable).";
+
   if (parsedEntry) {
     message = answerChanged
-      ? `Re-parsed answer from document: ${answer} (was ${previousAnswer ?? "none"}). Explanation regenerated. Problem unapproved — review and approve again.`
-      : `Confirmed answer from document: ${answer}. Explanation regenerated. Problem unapproved — review and approve again.`;
-  } else if (keySource === "ai") {
-    message = `No document key for #${problem.problemNumber}; AI set answer to ${answer}. Explanation regenerated. Problem unapproved — review and approve again.`;
+      ? `Document key was ${previousAnswer ?? "none"}; dual-model reexamine set ${answer}. ${resolutionNote} Problem unapproved — review and approve again.`
+      : `Dual-model reexamine confirmed ${answer} (matches document key). ${resolutionNote} Explanation regenerated. Problem unapproved — review and approve again.`;
   } else {
-    message = `No document key found; kept existing answer ${answer ?? "none"}. Explanation regenerated. Problem unapproved — review and approve again.`;
+    message = `No document key for #${problem.problemNumber}; dual-model set answer to ${answer}. ${resolutionNote} Problem unapproved — review and approve again.`;
   }
 
   return {
@@ -252,6 +248,11 @@ export async function reexamineProblemAnswer(
     documentKeyFound,
     explanationGenerated,
     modelUsed,
+    dualModelResolution,
+    openaiAnswer,
+    claudeAnswer,
+    reviewTier,
+    reviewReason,
     message,
   };
 }
