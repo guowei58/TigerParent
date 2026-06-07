@@ -27,6 +27,13 @@ test("resolveProblemProgressFromAttempts", () => {
     resolveProblemProgressFromAttempts([{ isCorrect: null, skipped: true }]),
     "skipped",
   );
+  assert.equal(
+    resolveProblemProgressFromAttempts([
+      { isCorrect: null, skipped: true },
+      { isCorrect: true, skipped: false },
+    ]),
+    "correct",
+  );
 });
 
 test("countUniqueProblemsFromAttempts dedupes retries", () => {
@@ -48,18 +55,27 @@ test("countProgressStatuses", () => {
     b: "incorrect",
     c: "skipped",
   });
-  assert.equal(counts.done, 3);
+  assert.equal(counts.done, 2);
   assert.equal(counts.correct, 1);
   assert.equal(counts.incorrect, 1);
   assert.equal(counts.skipped, 1);
 });
 
-test("findFirstIncompleteIndex skips finished problems", () => {
+test("findFirstIncompleteIndex treats skipped as incomplete", () => {
   const problems = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
   const progress = { a: "correct" as const, b: "incorrect" as const, d: "skipped" as const };
   assert.equal(findFirstIncompleteIndex(problems, progress), 2);
   assert.equal(
     findFirstIncompleteIndex(problems, { ...progress, c: "correct" }),
+    3,
+  );
+  assert.equal(
+    findFirstIncompleteIndex(problems, {
+      a: "correct",
+      b: "incorrect",
+      c: "correct",
+      d: "correct",
+    }),
     -1,
   );
 });

@@ -10,6 +10,16 @@ export type PdfPracticeProgress = {
   resumeIndex: number;
 };
 
+export function isPdfProblemComplete(
+  status: PdfProblemProgressStatus | undefined | null,
+): boolean {
+  return (
+    status === "correct" ||
+    status === "incorrect" ||
+    status === "submitted"
+  );
+}
+
 export function resolveProblemProgressFromAttempts(
   attempts: {
     isCorrect: boolean | null;
@@ -17,18 +27,21 @@ export function resolveProblemProgressFromAttempts(
     freeResponseText?: string | null;
   }[],
 ): PdfProblemProgressStatus | null {
-  if (attempts.some((a) => a.skipped)) return "skipped";
-
   const answered = attempts.filter((a) => !a.skipped);
-  const hadWrong = answered.some((a) => a.isCorrect === false);
-  const hadCorrect = answered.some((a) => a.isCorrect === true);
-  const parentSubmitted = answered.some(
-    (a) => a.isCorrect === null && Boolean(a.freeResponseText?.trim()),
-  );
+  if (answered.length > 0) {
+    const hadWrong = answered.some((a) => a.isCorrect === false);
+    const hadCorrect = answered.some((a) => a.isCorrect === true);
+    const parentSubmitted = answered.some(
+      (a) => a.isCorrect === null && Boolean(a.freeResponseText?.trim()),
+    );
 
-  if (parentSubmitted && !hadCorrect && !hadWrong) return "submitted";
-  if (hadWrong && hadCorrect) return "incorrect";
-  if (hadCorrect) return "correct";
+    if (parentSubmitted && !hadCorrect && !hadWrong) return "submitted";
+    if (hadWrong && hadCorrect) return "incorrect";
+    if (hadCorrect) return "correct";
+    return null;
+  }
+
+  if (attempts.some((a) => a.skipped)) return "skipped";
   return null;
 }
 
@@ -92,21 +105,22 @@ export function countProgressStatuses(
     incorrect: values.filter((v) => v === "incorrect").length,
     skipped: values.filter((v) => v === "skipped").length,
     submitted: values.filter((v) => v === "submitted").length,
-    done: values.length,
+    /** Answered problems only — skipped still counts as left to do. */
+    done: values.filter((v) => isPdfProblemComplete(v)).length,
   };
 }
 
-/** Next unfinished problem in list order (skips over already-finished items). */
+/** Next unanswered problem in list order (includes skipped and not started). */
 export function findFirstIncompleteIndex(
   problems: { id: string }[],
   progress: Record<string, PdfProblemProgressStatus | undefined>,
   afterIndex = -1,
 ): number {
   for (let i = afterIndex + 1; i < problems.length; i++) {
-    if (!progress[problems[i]!.id]) return i;
+    if (!isPdfProblemComplete(progress[problems[i]!.id])) return i;
   }
   for (let i = 0; i <= Math.min(afterIndex, problems.length - 1); i++) {
-    if (!progress[problems[i]!.id]) return i;
+    if (!isPdfProblemComplete(progress[problems[i]!.id])) return i;
   }
   return -1;
 }
@@ -132,7 +146,9 @@ export function buildPdfPracticeProgress(
     }
   }
 
-  const firstIncomplete = problemIds.findIndex((id) => !progressMap.has(id));
+  const firstIncomplete = problemIds.findIndex(
+    (id) => !isPdfProblemComplete(progressMap.get(id)),
+  );
   const resumeIndex =
     firstIncomplete === -1
       ? Math.max(0, problemIds.length - 1)

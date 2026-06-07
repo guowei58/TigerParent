@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import {
+  isPdfProblemComplete,
   resolveProblemProgressFromAttempts,
   type PdfPracticeProgress,
   type PdfProblemProgressStatus,
@@ -71,7 +72,7 @@ export async function getPdfProblemProgressMap(
   return map;
 }
 
-/** How many approved problems per topic the student has finished (answered or skipped). */
+/** How many approved problems per topic the student has answered (skipped does not count). */
 export async function getDoneCountByConceptId(
   scope: ProgressScope,
 ): Promise<Map<string, number>> {
@@ -108,7 +109,7 @@ export async function getDoneCountByConceptAndGrade(
   const done = new Map<string, number>();
   for (const problem of problems) {
     if (!problem.primaryConceptId || problem.gradeLevel == null) continue;
-    if (!progressMap.has(problem.id)) continue;
+    if (!isPdfProblemComplete(progressMap.get(problem.id))) continue;
     const key = `${problem.primaryConceptId}:${problem.gradeLevel}`;
     done.set(key, (done.get(key) ?? 0) + 1);
   }

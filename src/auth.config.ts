@@ -36,7 +36,8 @@ export default {
   trustHost: true,
   secret: getAuthSecret(),
   pages: { signIn: "/login" },
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  useSecureCookies: process.env.NODE_ENV === "production",
   providers: [],
   callbacks: {
     authorized({ request, auth }) {
@@ -59,6 +60,10 @@ export default {
       // can fail JWT decryption when env/workspace roots differ in dev.
       if (path.startsWith("/api/")) return true;
 
+      // /admin auth is enforced in Node (isAdminSession in pages + API routes).
+      // Edge middleware must not gate /admin — JWT decryption fails locally.
+      if (path.startsWith("/admin")) return true;
+
       if (!auth?.user) {
         const login = new URL("/login", request.nextUrl);
         login.searchParams.set("callbackUrl", path);
@@ -67,9 +72,6 @@ export default {
 
       const role = auth.user.role;
 
-      if (path.startsWith("/admin") && role !== "ADMIN") {
-        return NextResponse.redirect(new URL("/login", request.nextUrl));
-      }
       if (isDeprecatedParentPortalPath(path)) {
         return NextResponse.redirect(new URL(portalPath(role), request.nextUrl));
       }

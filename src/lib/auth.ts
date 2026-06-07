@@ -49,6 +49,16 @@ const nextAuth = NextAuth({
         token.role = user.role;
         token.familyId = user.familyId;
         token.studentProfileId = user.studentProfileId;
+      } else if (token.sub && !token.role) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { role: true, familyId: true, studentProfile: { select: { id: true } } },
+        });
+        if (dbUser) {
+          token.role = dbUser.role as AppUserRole;
+          token.familyId = dbUser.familyId;
+          token.studentProfileId = dbUser.studentProfile?.id ?? null;
+        }
       } else if (token.sub && token.role === "STUDENT" && !token.studentProfileId) {
         token.studentProfileId = await resolveStudentProfileId(token.sub);
       }
@@ -145,6 +155,9 @@ export async function auth() {
     return await internalAuth();
   } catch (error) {
     if (isJwtSessionError(error)) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[auth] Invalid session cookie — sign in again.", error);
+      }
       return null;
     }
     throw error;

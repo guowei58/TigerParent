@@ -166,7 +166,6 @@ export function PdfPracticeClient({
   const alreadyDone =
     currentStatus === "correct" ||
     currentStatus === "incorrect" ||
-    currentStatus === "skipped" ||
     currentStatus === "submitted";
   /** Re-opening a finished problem — not the moment right after submitting. */
   const reviewingCompletedProblem = alreadyDone && !feedback;
@@ -314,13 +313,6 @@ export function PdfPracticeClient({
 
   async function skip() {
     if (!current || alreadyDone) return;
-    if (needsScratchWork) {
-      setSubmitError(
-        getWorkFeedback(workQuality, requiresScratchpad) ??
-          "Show your work on the scratchpad before skipping.",
-      );
-      return;
-    }
     setChecking(true);
     setSubmitError(null);
     const res = await fetch("/api/practice/skip-problem", {
@@ -498,6 +490,12 @@ export function PdfPracticeClient({
             }}
           />
 
+          {currentStatus === "skipped" && (
+            <p className="text-sm text-amber-800 bg-amber-50 rounded-xl px-3 py-2">
+              You skipped this one earlier — give it a try now, or skip again.
+            </p>
+          )}
+
           {submitError && (
             <p className="text-sm text-amber-800 bg-amber-50 rounded-xl px-3 py-2">
               {submitError}
@@ -535,7 +533,7 @@ export function PdfPracticeClient({
                     : undefined
                 }
                 onClick={skip}
-                disabled={checking || (!answerReady && !elaShowTextStem) || needsScratchWork}
+                disabled={checking}
               >
                 {checking ? "Skipping…" : "Skip"}
               </Button>

@@ -65,7 +65,11 @@ async function uploadPdfRow(row: PendingPdf, confirmDuplicate: boolean): Promise
   fd.set("answerKeyPageCount", String(row.answerKeyPageCount));
   if (confirmDuplicate) fd.set("confirmDuplicate", "true");
 
-  const res = await fetch("/api/admin/pdf-imports", { method: "POST", body: fd });
+  const res = await fetch("/api/admin/pdf-imports", {
+    method: "POST",
+    body: fd,
+    credentials: "same-origin",
+  });
   const data = (await res.json()) as {
     documentId?: string;
     error?: string;
@@ -76,6 +80,10 @@ async function uploadPdfRow(row: PendingPdf, confirmDuplicate: boolean): Promise
     return { ok: false, duplicate: true };
   }
   if (!res.ok) {
+    if (res.status === 403) {
+      window.location.href = "/login?callbackUrl=/admin/pdf-imports";
+      return { ok: false, error: "Session expired — please sign in again." };
+    }
     return { ok: false, error: data.error ?? data.message ?? "Upload failed" };
   }
   return { ok: true, documentId: data.documentId };

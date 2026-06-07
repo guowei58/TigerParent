@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
-import { auth } from "@/lib/auth";
-import { isAdminSession } from "@/lib/auth/admin";
+import { requireAdminApiSession } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db";
 
 function startIngestionWorker(sourceDocumentId: string, jobId: string) {
@@ -35,10 +34,8 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!isAdminSession(session)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminApiSession();
+  if (admin.response) return admin.response;
 
   const { id } = await params;
   const doc = await prisma.pdfSourceDocument.findUnique({ where: { id } });

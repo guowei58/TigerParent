@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { isAdminSession } from "@/lib/auth/admin";
+import { requireAdminApiSession } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db";
 import { deletePdfImportDocument } from "@/lib/pdf/deletePdfImport";
 import { assetUrl, elaQuestionDisplayImagePath, problemDisplayImagePath } from "@/lib/pdf/displayPaths";
@@ -9,10 +8,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!isAdminSession(session)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminApiSession();
+  if (admin.response) return admin.response;
+  const session = admin.session;
 
   const { id } = await params;
   const doc = await prisma.pdfSourceDocument.findUnique({
@@ -51,10 +49,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!isAdminSession(session)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminApiSession();
+  if (admin.response) return admin.response;
+  const session = admin.session;
 
   const { id } = await params;
   const result = await deletePdfImportDocument(id);
@@ -73,10 +70,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  if (!isAdminSession(session)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const admin = await requireAdminApiSession();
+  if (admin.response) return admin.response;
+  const session = admin.session;
 
   const { id } = await params;
   const doc = await prisma.pdfSourceDocument.findUnique({

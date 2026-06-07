@@ -43,7 +43,7 @@ export async function recordPdfProblemAttempt(
     input.drawingSeconds,
   );
 
-  if (requiresScratchpad && !quality.showedWork) {
+  if (requiresScratchpad && !input.skipped && !quality.showedWork) {
     return {
       ok: false,
       error: "Show your work on the scratchpad before submitting.",
