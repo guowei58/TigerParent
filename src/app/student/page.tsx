@@ -5,7 +5,8 @@ import { StudentNav } from "@/components/layouts/StudentNav";
 import { StatBox } from "@/components/ui/Badge";
 import { gradeLabel } from "@/lib/utils";
 import { getSubjectLearningCards } from "@/lib/unit-learning";
-import { getStudentProblemStats } from "@/lib/leaderboard";
+import { getRecentPracticeSummariesForStudent } from "@/lib/recent-practice-summaries";
+import { RecentPracticeSection } from "@/components/student/RecentPracticeSection";
 import { SubjectLearningCard } from "@/components/student/SubjectLearningCard";
 
 export default async function StudentDashboardPage() {
@@ -13,10 +14,10 @@ export default async function StudentDashboardPage() {
   if (!session?.user?.studentProfileId) redirect("/login");
 
   const studentId = session.user.studentProfileId;
-  const [data, subjectCards, problemStats] = await Promise.all([
+  const [data, subjectCards, recentPractices] = await Promise.all([
     getStudentDashboard(studentId),
     getSubjectLearningCards(studentId),
-    getStudentProblemStats(studentId),
+    getRecentPracticeSummariesForStudent(studentId, 12),
   ]);
 
   return (
@@ -24,12 +25,12 @@ export default async function StudentDashboardPage() {
       <StudentNav displayName={data.student.displayName} />
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatBox label="Correct" value={problemStats.problemsCorrect} accent="emerald" />
-          <StatBox label="Problems done" value={problemStats.problemsDone} accent="indigo" />
+          <StatBox label="XP" value={data.student.xp} accent="indigo" />
+          <StatBox label="Streak" value={`${data.student.streakDays} days`} accent="amber" />
           <StatBox
             label="Daily Goal"
             value={`${data.student.dailyGoalMinutes} min`}
-            accent="amber"
+            accent="emerald"
           />
           <StatBox
             label="Grade"
@@ -43,6 +44,8 @@ export default async function StudentDashboardPage() {
             <SubjectLearningCard key={card.subjectId} card={card} />
           ))}
         </div>
+
+        <RecentPracticeSection practices={recentPractices} />
       </main>
     </div>
   );

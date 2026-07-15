@@ -3,9 +3,10 @@ import { PdfPassagePanel } from "@/components/pdf/PdfPassagePanel";
 import { ScratchWorkPreview } from "@/components/ScratchWorkPreview";
 import {
   formatPdfAttemptAnswer,
+  legacyAttemptStatusLabel,
   pdfAttemptStatusLabel,
   type DailyPdfWorkAttempt,
-  type DailyWorkAttempt,
+  type DailyWorkAttemptDisplay,
 } from "@/lib/analytics";
 import { formatRecordingDuration } from "@/lib/passage-recording";
 import type { DailyPassageRecording } from "@/lib/passage-recording";
@@ -60,11 +61,13 @@ export function ParentPdfAttemptCard({
         </div>
         <span
           className={
-            attempt.isCorrect === true
+            attempt.progressStatus === "correct"
               ? "shrink-0 text-sm font-semibold text-emerald-600"
-              : attempt.skipped
+              : attempt.progressStatus === "incorrect"
                 ? "shrink-0 text-sm font-semibold text-amber-600"
-                : "shrink-0 text-sm font-semibold text-rose-600"
+                : attempt.skipped
+                  ? "shrink-0 text-sm font-semibold text-amber-600"
+                  : "shrink-0 text-sm font-semibold text-rose-600"
           }
         >
           {pdfAttemptStatusLabel(attempt)}
@@ -73,6 +76,9 @@ export function ParentPdfAttemptCard({
 
       <p className="mt-2 text-sm text-slate-600">
         Answer: <span className="font-medium text-slate-800">{formatPdfAttemptAnswer(attempt)}</span>
+        {attempt.attemptCount > 1 && (
+          <span className="text-slate-400"> · {attempt.attemptCount} tries</span>
+        )}
         {attempt.timeSpentSeconds != null && (
           <span className="text-slate-400"> · {attempt.timeSpentSeconds}s</span>
         )}
@@ -128,7 +134,7 @@ export function ParentPdfAttemptCard({
   );
 }
 
-export function ParentLegacyAttemptCard({ attempt }: { attempt: DailyWorkAttempt }) {
+export function ParentLegacyAttemptCard({ attempt }: { attempt: DailyWorkAttemptDisplay }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -138,12 +144,16 @@ export function ParentLegacyAttemptCard({ attempt }: { attempt: DailyWorkAttempt
         </div>
         <span
           className={
-            attempt.isCorrect
+            attempt.progressStatus === "correct"
               ? "shrink-0 text-sm font-semibold text-emerald-600"
-              : "shrink-0 text-sm font-semibold text-rose-600"
+              : attempt.progressStatus === "incorrect"
+                ? "shrink-0 text-sm font-semibold text-amber-600"
+                : attempt.isCorrect
+                  ? "shrink-0 text-sm font-semibold text-emerald-600"
+                  : "shrink-0 text-sm font-semibold text-rose-600"
           }
         >
-          {attempt.isCorrect ? "Correct" : "Incorrect"}
+          {legacyAttemptStatusLabel(attempt)}
         </span>
       </div>
 

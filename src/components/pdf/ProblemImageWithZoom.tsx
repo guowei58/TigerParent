@@ -117,27 +117,27 @@ export function ProblemImageWithZoom({
           : undefined
       }
     >
-      <div className="absolute top-2 right-2 z-10 flex items-center rounded-lg border border-slate-200 bg-white/95 shadow-sm">
+      <div className="pointer-events-none absolute top-2 right-2 z-10 flex items-center rounded-lg border border-slate-500/10 bg-white/5 shadow-none backdrop-blur-[1px]">
         <button
           type="button"
           onClick={zoomOut}
           disabled={!zoomed}
-          className="flex h-8 w-8 items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+          className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-l-lg text-slate-900/80 hover:bg-white/15 disabled:opacity-30"
           aria-label="Zoom out"
         >
-          <ZoomOut className="h-4 w-4" aria-hidden />
+          <ZoomOut className="h-4 w-4 drop-shadow-[0_0_2px_white]" aria-hidden />
         </button>
-        <span className="min-w-[2.75rem] border-x border-slate-200 px-1 text-center text-xs font-medium text-slate-600">
+        <span className="min-w-[2.75rem] border-x border-slate-500/10 px-1 text-center text-xs font-semibold text-slate-900/75 drop-shadow-[0_0_2px_white]">
           {Math.round(zoom * 100)}%
         </span>
         <button
           type="button"
           onClick={zoomIn}
           disabled={zoom >= ZOOM_MAX}
-          className="flex h-8 w-8 items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+          className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-r-lg text-slate-900/80 hover:bg-white/15 disabled:opacity-30"
           aria-label="Zoom in"
         >
-          <ZoomIn className="h-4 w-4" aria-hidden />
+          <ZoomIn className="h-4 w-4 drop-shadow-[0_0_2px_white]" aria-hidden />
         </button>
       </div>
 

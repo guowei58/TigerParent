@@ -1,6 +1,7 @@
 import type { Session } from "next-auth";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { clearAuthCookies } from "@/lib/auth-errors";
 import { prisma } from "@/lib/db";
 import type { AppUserRole } from "@/auth.config";
 
@@ -65,11 +66,25 @@ export async function requireAdminApiSession(): Promise<
   { session: Session; response: null } | { session: null; response: NextResponse }
 > {
   const session = await resolveAdminSession();
-  if (!session) {
-    return {
-      session: null,
-      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-    };
+  if (session) {
+    return { session, response: null };
   }
-  return { session, response: null };
+
+  const bare = await auth();
+  if (!bare?.user) {
+    const response = NextResponse.json(
+      { error: "Unauthorized", code: "SESSION_REQUIRED" },
+      { status: 401 },
+    );
+    clearAuthCookies(response);
+    return { session: null, response };
+  }
+
+  return {
+    session: null,
+    response: NextResponse.json(
+      { error: "Forbidden", code: "ADMIN_REQUIRED" },
+      { status: 403 },
+    ),
+  };
 }

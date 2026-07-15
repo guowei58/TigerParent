@@ -15,6 +15,7 @@ import {
 import {
   countUniqueProblemsFromAttempts,
   resolveProblemProgressForReporting,
+  type PdfProblemProgressStatus,
 } from "@/lib/pdf-practice/progress-shared";
 import type { PracticeSession, Prisma } from "@/generated/prisma/client";
 import {
@@ -249,6 +250,11 @@ export type DailyTopicSummary = {
   total: number;
 };
 
+export type DailyWorkAttemptDisplay = DailyWorkAttempt & {
+  attemptCount: number;
+  progressStatus: PdfProblemProgressStatus | null;
+};
+
 export type DailyPdfWorkAttempt = {
   id: string;
   createdAt: Date;
@@ -269,13 +275,17 @@ export type DailyPdfWorkAttempt = {
   passage: PdfPassageView | null;
   isElaReading: boolean;
   strokes: { strokeDataJson: unknown; drawingSeconds: number | null } | null;
+  /** Total tries on this problem today (parent view shows latest only). */
+  attemptCount: number;
+  /** Final outcome for the day — wrong-then-fixed counts as incorrect. */
+  progressStatus: PdfProblemProgressStatus | null;
 };
 
 export type DailyWorkSummary = {
   dateKey: string;
   displayDate: string;
   sessions: PracticeSession[];
-  attempts: DailyWorkAttempt[];
+  attempts: DailyWorkAttemptDisplay[];
   pdfAttempts: DailyPdfWorkAttempt[];
   totalMinutes: number;
   problemsAttempted: number;
@@ -300,10 +310,22 @@ export function formatPdfAttemptAnswer(attempt: DailyPdfWorkAttempt): string {
 }
 
 export function pdfAttemptStatusLabel(attempt: DailyPdfWorkAttempt): string {
+  if (attempt.progressStatus === "incorrect") return "Wrong then fixed";
+  if (attempt.progressStatus === "correct") return "Correct";
+  if (attempt.progressStatus === "submitted") return "Saved for review";
+  if (attempt.progressStatus === "skipped") return "Skipped";
   if (attempt.skipped) return "Skipped";
   if (attempt.isCorrect === true) return "Correct";
   if (attempt.isCorrect === false) return "Incorrect";
   return "Attempted";
+}
+
+export function legacyAttemptStatusLabel(attempt: DailyWorkAttemptDisplay): string {
+  if (attempt.progressStatus === "incorrect") return "Wrong then fixed";
+  if (attempt.progressStatus === "correct") return "Correct";
+  if (attempt.progressStatus === "skipped") return "Skipped";
+  if (attempt.isCorrect) return "Correct";
+  return "Incorrect";
 }
 
 function dayRange(dateKey: string) {
@@ -311,6 +333,28 @@ function dayRange(dateKey: string) {
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
   return { dayStart, dayEnd };
+}
+
+function countAttemptsByProblemId<T extends { problemId: string }>(rows: T[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    counts.set(row.problemId, (counts.get(row.problemId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** Parent review shows one row per problem — keep the most recent try. */
+function latestAttemptPerProblem<T extends { problemId: string; createdAt: Date }>(rows: T[]): T[] {
+  const latest = new Map<string, T>();
+  for (const row of rows) {
+    const prev = latest.get(row.problemId);
+    if (!prev || row.createdAt >= prev.createdAt) {
+      latest.set(row.problemId, row);
+    }
+  }
+  return [...latest.values()].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+  );
 }
 
 export async function getStudentActiveDates(
@@ -443,8 +487,56 @@ export async function getStudentDailyWork(
             drawingSeconds: row.strokes.drawingSeconds,
           }
         : null,
+      attemptCount: 1,
+      progressStatus: null as PdfProblemProgressStatus | null,
     };
   });
+
+  const pdfAttemptCounts = countAttemptsByProblemId(pdfAttemptsRaw);
+  const pdfAttemptsByProblemId = new Map<string, typeof pdfAttemptsRaw>();
+  for (const row of pdfAttemptsRaw) {
+    const list = pdfAttemptsByProblemId.get(row.problemId) ?? [];
+    list.push(row);
+    pdfAttemptsByProblemId.set(row.problemId, list);
+  }
+
+  const displayPdfAttempts = latestAttemptPerProblem(pdfAttempts).map((attempt) => {
+    const allForProblem = pdfAttemptsByProblemId.get(attempt.problemId) ?? [];
+    const progressStatus = resolveProblemProgressForReporting(
+      allForProblem.map((a) => ({
+        isCorrect: a.isCorrect,
+        skipped: a.skipped,
+        freeResponseText: a.freeResponseText,
+      })),
+    );
+    return {
+      ...attempt,
+      attemptCount: pdfAttemptCounts.get(attempt.problemId) ?? 1,
+      progressStatus,
+    };
+  });
+
+  const legacyAttemptCounts = countAttemptsByProblemId(attempts);
+  const legacyAttemptsByProblemId = new Map<string, typeof attempts>();
+  for (const row of attempts) {
+    const list = legacyAttemptsByProblemId.get(row.problemId) ?? [];
+    list.push(row);
+    legacyAttemptsByProblemId.set(row.problemId, list);
+  }
+
+  const displayAttempts: DailyWorkAttemptDisplay[] = latestAttemptPerProblem(attempts).map(
+    (attempt) => {
+      const allForProblem = legacyAttemptsByProblemId.get(attempt.problemId) ?? [];
+      const progressStatus = resolveProblemProgressForReporting(
+        allForProblem.map((a) => ({ isCorrect: a.isCorrect, skipped: false })),
+      );
+      return {
+        ...attempt,
+        attemptCount: legacyAttemptCounts.get(attempt.problemId) ?? 1,
+        progressStatus,
+      };
+    },
+  );
 
   const sessionIdsWithAttempts = new Set(attempts.map((a) => a.sessionId));
   const visibleSessions = sessions.filter(
@@ -598,8 +690,8 @@ export async function getStudentDailyWork(
     dateKey: resolvedDateKey,
     displayDate,
     sessions: visibleSessions,
-    attempts,
-    pdfAttempts,
+    attempts: displayAttempts,
+    pdfAttempts: displayPdfAttempts,
     totalMinutes,
     problemsAttempted,
     problemsCorrect,

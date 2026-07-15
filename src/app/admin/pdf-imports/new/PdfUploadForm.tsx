@@ -80,9 +80,15 @@ async function uploadPdfRow(row: PendingPdf, confirmDuplicate: boolean): Promise
     return { ok: false, duplicate: true };
   }
   if (!res.ok) {
-    if (res.status === 403) {
+    if (res.status === 401) {
       window.location.href = "/login?callbackUrl=/admin/pdf-imports";
       return { ok: false, error: "Session expired — please sign in again." };
+    }
+    if (res.status === 403) {
+      return {
+        ok: false,
+        error: "Admin access required. Sign in with an admin account (e.g. admin@tigerparent.local).",
+      };
     }
     return { ok: false, error: data.error ?? data.message ?? "Upload failed" };
   }
