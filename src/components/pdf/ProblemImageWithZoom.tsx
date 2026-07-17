@@ -30,6 +30,7 @@ export function ProblemImageWithZoom({
   imgRef,
 }: ProblemImageWithZoomProps) {
   const [zoom, setZoom] = useState(1);
+  const [showControls, setShowControls] = useState(false);
   const [baseImgSize, setBaseImgSize] = useState<Size | null>(null);
   const [lockedBoxSize, setLockedBoxSize] = useState<Size | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -38,6 +39,7 @@ export function ProblemImageWithZoom({
 
   useEffect(() => {
     setZoom(1);
+    setShowControls(false);
     setBaseImgSize(null);
     setLockedBoxSize(null);
   }, [src]);
@@ -104,6 +106,8 @@ export function ProblemImageWithZoom({
         !boxClassName && "w-fit max-w-full",
         zoomed ? "overflow-auto" : "overflow-hidden",
       )}
+      onMouseEnter={() => setShowControls(true)}
+      onMouseLeave={() => setShowControls(false)}
       style={
         zoomed && lockedBoxSize
           ? {
@@ -117,7 +121,12 @@ export function ProblemImageWithZoom({
           : undefined
       }
     >
-      <div className="pointer-events-none absolute top-2 right-2 z-10 flex items-center rounded-lg border border-slate-500/10 bg-white/5 shadow-none backdrop-blur-[1px]">
+      <div
+        className={cn(
+          "absolute top-2 right-2 z-10 flex items-center rounded-lg border border-slate-500/10 bg-white/5 shadow-none backdrop-blur-[1px] transition-opacity duration-200",
+          showControls ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+      >
         <button
           type="button"
           onClick={zoomOut}
